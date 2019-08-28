@@ -1,0 +1,11 @@
+/Include
+/Lib
+/Scripts
+/__pycache__
+feetToMeters.py
+pyvenv.cfg
+save*/
+scribble.py
+simple_tree.png
+tinker.py
+turtle0.py

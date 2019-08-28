@@ -1,0 +1,6 @@
+Ideas:
+
+debugging:
+	1. Allow tagging expressions, which causes them to be evaluated
+		and printed out in debugging mode
+	2. Tag can specify whether to stop or continue

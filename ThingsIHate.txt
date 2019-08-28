@@ -1,0 +1,9 @@
+Things I hate:
+
+1. Python's lack of ++ and --, with no warnings or errors
+2. Expression Statements
+3. Losing the distinction between function and procedure
+4. Missing heredoc syntax
+5. Missing state variables
+6. Top level function body indentation
+7. Using keywords break and continue, instead of next and last
