@@ -10,6 +10,8 @@ from PLLParser import parsePLL
 
 def centerWindow(window):
 
+	window.update_idletasks()
+
 	# Gets the requested values of the height and width.
 	windowWidth = window.winfo_reqwidth()
 	windowHeight = window.winfo_reqheight()

@@ -8,7 +8,7 @@ from PythonNode import PythonNode
 from PLLParser import parsePLL
 
 reCommand = re.compile(r'^([A-Za-z]+)(?:\s+(.*))?$')
-setNoChildren  = frozenset(('move','turn'))
+setNoChildren  = frozenset(('move','turn','center'))
 setHasChildren = frozenset(('turtle','at','repeat'))
 
 class TurtleNode(TreeNode):
@@ -56,12 +56,22 @@ class TurtleNode(TreeNode):
 			newNode = PythonNode(f"turtle.forward({lArgs[0]})")
 		elif cmd == 'turn':
 			newNode = PythonNode(f"turtle.right({lArgs[0]})")
+		elif cmd == 'center':
+			newNode = PythonNode(f"turtle.center()")
 		elif cmd == 'at':
 			# --- Save current position and heading
 			newNode = PythonNode(f'turtle.moveTo({lArgs[0]}, {lArgs[1]})')
 			for child in self.children():
 				newNode.appendNode(child.pythonify())
-			newNode.append(f'turtle.restore()')
+
+			# --- If next node is an 'at' node, don't re-show the turtle
+			reshow = 'True'
+			if self.nextSibling:
+				(nextCmd, nextlArgs) = self.nextSibling.parse()
+				if nextCmd == 'at':
+					reshow = 'False'
+
+			newNode.append(f'turtle.restore(show={reshow})')
 		elif cmd == 'repeat':
 			newNode = PythonNode(f"for i in range({lArgs[0]}):")
 			for child in self.children():

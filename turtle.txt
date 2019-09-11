@@ -10,3 +10,4 @@ at 90, 0
 	repeat 4
 		move 50
 		turn 90
+center
