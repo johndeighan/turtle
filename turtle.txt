@@ -1,0 +1,12 @@
+at 0, 0
+	repeat 4
+		move 50
+		turn 90
+at 0, 90
+	repeat 4
+		move 50
+		turn 90
+at 90, 0
+	repeat 4
+		move 50
+		turn 90
