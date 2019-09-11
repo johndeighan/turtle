@@ -6,6 +6,7 @@ from turtle import TurtleScreen, RawTurtle, TK
 from myutils import rmPrefix
 from tkutils import centerWindow, addMenuBar
 from TreeNode import TreeNode
+from MyTurtle import MyTurtle
 from TurtleNode import TurtleNode
 from PLLParser import parsePLL
 from ProgramEditor import ProgramEditor
@@ -62,9 +63,7 @@ class TurtleEnv:
 
 		centerWindow(root)
 
-		turtl = self.turtle = RawTurtle(screen)
-		turtl.shape('turtle')
-		turtl.speed(speed)
+		self.turtle = MyTurtle(screen)
 
 	def mainloop(self):
 		self.screen.mainloop()

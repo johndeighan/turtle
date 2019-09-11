@@ -58,30 +58,10 @@ class TurtleNode(TreeNode):
 			newNode = PythonNode(f"turtle.right({lArgs[0]})")
 		elif cmd == 'at':
 			# --- Save current position and heading
-			newNode = PythonNode('save_pos = turtle.pos()')
-			newNode.append(f'''
-					save_heading = turtle.heading()
-					#
-					# --- Set new position and heading
-					turtle.hideturtle()
-					turtle.penup()
-					turtle.setpos({lArgs[0]}, {lArgs[1]})
-					turtle.setheading(0)
-					turtle.pendown()
-					turtle.showturtle()
-					''')
-
+			newNode = PythonNode(f'turtle.moveTo({lArgs[0]}, {lArgs[1]})')
 			for child in self.children():
 				newNode.appendNode(child.pythonify())
-			newNode.append(f'''
-					# --- Restore saved position and heading
-					turtle.hideturtle()
-					turtle.penup()
-					turtle.setpos(save_pos)
-					turtle.setheading(save_heading)
-					turtle.pendown()
-					turtle.showturtle()
-					''')
+			newNode.append(f'turtle.restore()')
 		elif cmd == 'repeat':
 			newNode = PythonNode(f"for i in range({lArgs[0]}):")
 			for child in self.children():
