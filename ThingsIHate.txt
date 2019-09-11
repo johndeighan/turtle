@@ -1,6 +1,6 @@
 Things I hate:
 
-1. Python's lack of ++ and --, with no warnings or errors
+1. Python's lack of ++ and --, with no warnings or errors, i.e. --x just means x
 2. Expression Statements
 3. Losing the distinction between function and procedure
 4. Missing heredoc syntax
