@@ -1,6 +1,9 @@
 # TreeNode.py
 
-import re
+import sys, re, pytest
+from more_itertools import ilen
+
+from myutils import rmPrefix
 
 class TreeNode:
 	# --- These are a Class variables ----------------------
@@ -16,10 +19,7 @@ class TreeNode:
 
 	# ------------------------------------------------------
 
-	def __init__(self, label,
-			childOf=None,
-			siblingOf=None,
-			):
+	def __init__(self, label):
 
 		self.hData = {
 			'label': label,
@@ -29,31 +29,61 @@ class TreeNode:
 		self.nextSibling = None
 		self.firstChild = None
 
-		# --- You can't specify both of these
-		assert not (childOf and siblingOf)
+	# ------------------------------------------------------
+	#    Multiple ways to build up a tree structure
+	# ------------------------------------------------------
 
-		if childOf:
-			assert isinstance(childOf, TreeNode)
+	def makeChildOf(self, node):
+		assert isinstance(node, TreeNode)
 
-			self.parent = childOf
+		self.parent = node
 
-			lastChild = childOf.firstChild
-			if (lastChild):
-				while (lastChild.nextSibling):
-					lastChild = lastChild.nextSibling
+		lastChild = node.firstChild
+		if (lastChild):
+			while (lastChild.nextSibling):
+				lastChild = lastChild.nextSibling
 
-				# --- Now, lastChild has no nextSibling
-				lastChild.nextSibling = self
-			else:
-				childOf.firstChild = self
+			# --- Now, lastChild has no nextSibling
+			lastChild.nextSibling = self
+		else:
+			node.firstChild = self
+		return self    # allow chaining
 
-		elif siblingOf:
-			assert isinstance(siblingOf, TreeNode)
-			assert siblingOf.parent
-			assert not siblingOf.nextSibling
+	def makeSiblingOf(self, node):
+		assert isinstance(node, TreeNode)
+		assert not self.parent
+		assert node.parent
 
-			self.parent = siblingOf.parent
-			siblingOf.nextSibling = self
+		parent = node.parent
+		cur = node
+		while cur.nextSibling:
+			cur = cur.nextSibling
+			assert cur.parent == parent
+		cur.nextSibling = self
+		self.parent = parent
+		return self    # allow chaining
+
+	def appendNode(self, newNode):
+		node = self
+		while node.nextSibling:
+			node = node.nextSibling
+		node.nextSibling = newNode
+		return self    # allow chaining
+
+	def appendChildNode(self, newNode):
+		if self.firstChild:
+			self.firstChild.appendNode(newNode)
+		else:
+			self.firstChild = newNode
+		return self    # allow chaining
+
+	def append(self, label):
+		self.appendNode(TreeNode(label))
+		return self    # allow chaining
+
+	def appendChild(self, label):
+		self.appendChildNode(TreeNode(label))
+		return self    # allow chaining
 
 	# -----------------------------------------------------------
 	# --- These methods allow us to treat a TreeNode object as a dict
@@ -71,6 +101,9 @@ class TreeNode:
 	# --- These methods allow us to iterate over all of a
 	#     TreeNode's children or descendents
 
+	def hasChildren(self):
+		return self.firstChild != None
+
 	def children(self):
 		child = self.firstChild
 		while (child):
@@ -87,25 +120,51 @@ class TreeNode:
 			yield from child.descendents(level+1)
 			child = child.nextSibling
 
+	def numNodes(self):
+		return ilen(self.descendents())
+
+	def asString(self, level=0, indent='\t'):
+		s = (indent * level) + self.hData['label'] + '\n'
+		child = self.firstChild
+		while child:
+			s += child.asString(level+1, indent)
+			child = child.nextSibling
+		return s
+
+	def asFragment(self, level=0, indent='\t'):
+		child = self.firstChild
+		s = ''
+		while child:
+			s += child.asString(level, indent)
+			child = child.nextSibling
+		return s
+
 	# -----------------------------------------------------------
 
-	def printTree(self, level=0, debug=False, indent=None):
+	def printTree(self, label=None, *,
+	                    level=0, debug=False, indent=None):
+		print()
+		print('='*50)
+		if label:
+			print('-'*6 + ' Tree \'' + label + '\'')
+			print('-'*50)
 		for (level,node) in self.descendents():
 			node.printNode(level, debug, indent)
+		print('='*50)
 
 	def printNode(self, level=0, debug=True, indent=None):
 		indentStr = (indent or self.indent) * level
 		if debug:
-			print('-' * 40)
-		print(f"{indentStr}{self.asString()}")
+			print('-' * 50)
+		print(f"{indentStr}{self.asDebugString()}")
 		if debug:
 			print(f"{indentStr} -parent      = {nodeStr(self.parent)}")
 			print(f"{indentStr} -nextSibling = {nodeStr(self.nextSibling)}")
 			print(f"{indentStr} -firstChild  = {nodeStr(self.firstChild)}")
-			print('-' * 40)
+			print('-' * 50)
 		return
 
-	def asString(self):
+	def asDebugString(self):
 		# --- This should also "escape" any control characters
 		label = self['label']
 		if self.reSimpleLabel.match(label):
@@ -120,6 +179,61 @@ def nodeStr(node):
 	#     e.g. nodeStr(somenode.nextSibling)
 	if node:
 		assert isinstance(node, TreeNode)
-		return node.asString()
+		return node.asDebugString()
 	else:
 		return '(None)'
+
+# ---------------------------------------------------------------------------
+#                   UNIT TESTS
+# ---------------------------------------------------------------------------
+
+# --- test tree ---
+#	top
+#		peach
+#			fuzzy navel
+#			pink
+#		apple
+#			red
+
+test_tree = TreeNode('top')
+
+peach = TreeNode('peach').makeChildOf(test_tree)
+TreeNode('fuzzy navel').makeChildOf(peach)
+TreeNode('pink').makeChildOf(peach)
+
+apple = TreeNode('apple').makeChildOf(test_tree)
+TreeNode('red').makeChildOf(apple)
+
+def test_0():
+	# --- Test asString()
+	mystr = test_tree.asString()
+	assert mystr == rmPrefix('''
+		top
+			peach
+				fuzzy navel
+				pink
+			apple
+				red
+		''')
+
+def test_1():
+	n = ilen(test_tree.children())
+	assert n == 2
+
+def test_2():
+	n = ilen(test_tree.descendents())
+	assert n == 6
+
+def test_3():
+	assert ilen(test_tree.firstChild.children()) == 2
+
+def test_4():
+	assert test_tree['label'] == 'top'
+
+def test_5():
+	assert test_tree.firstChild['label'] == 'peach'
+
+def test_6():
+	node = test_tree.firstChild.firstChild
+	node['label'] == 'fuzzy navel'
+
