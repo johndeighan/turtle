@@ -13,20 +13,17 @@ class MyTurtle(RawTurtle):
 		self.screen = screen
 
 		super().__init__(screen)
-		self.speed(1)  # turtle.cfg doesn't appear to support this
 		self.lSaved = []
 
 	def execute(self, program):
-		turtleNode = parsePLL(program, constr=TurtleNode)
+		(turtleNode,) = parsePLL(program, constructor=TurtleNode)
 		assert isinstance(turtleNode, TurtleNode)
 
 		pythonNode = turtleNode.pythonifyProgram()
 		assert isinstance(pythonNode, PythonNode)
 
-		hGlobals = {
-			'turtle': self,
-			}
-		pythonNode.execute(hGlobals)
+		self.speed(1)
+		pythonNode.execute({'turtle': self})
 
 	def clear(self):
 		self.screen.reset()

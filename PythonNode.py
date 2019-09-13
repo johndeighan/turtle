@@ -5,16 +5,16 @@ from PLLParser import parsePLL
 
 class PythonNode(TreeNode):
 
-	def __init__(self, label):
-		TreeNode.__init__(self, label)
+	def __init__(self, label, lHereDoc=None):
+		TreeNode.__init__(self, label, lHereDoc)
 
 	def append(self, text):
-		node = parsePLL(text, asTree="Python", constr=PythonNode)
+		(node,) = parsePLL(text, asTree="Python", constructor=PythonNode)
 		self.appendNode(node.firstChild)
 		return self    # allow chaining
 
 	def appendChild(self, text):
-		node = parsePLL(text, asTree="Python", constr=PythonNode)
+		(node,) = parsePLL(text, asTree="Python", constructor=PythonNode)
 		self.appendChildNode(node.firstChild)
 		return self    # allow chaining
 

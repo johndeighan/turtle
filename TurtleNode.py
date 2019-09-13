@@ -13,8 +13,8 @@ setHasChildren = frozenset(('turtle','at','repeat'))
 
 class TurtleNode(TreeNode):
 
-	def __init__(self, label):
-		TreeNode.__init__(self, label)
+	def __init__(self, label, lHereDoc=None):
+		TreeNode.__init__(self, label, lHereDoc)
 
 	def execute(self, hGlobals=None, hLocals=None):
 		programText = self.asString()
@@ -103,10 +103,14 @@ class TurtleNode(TreeNode):
 		print('='*48)
 
 def parseAndCompare(s, *, debug=False):
-	turtleNode = parsePLL(s, constr=TurtleNode)
-	# turtleNode.printProgram()
+	(turtleNode,) = parsePLL(s, constructor=TurtleNode)
+	assert isinstance(turtleNode, TurtleNode)
+	turtleNode.printProgram()
+
 	pythonNode = turtleNode.pythonifyNode()
-	# pythonNode.printProgram()
+	assert isinstance(pythonNode, PythonNode)
+	pythonNode.printProgram()
+
 	return pythonNode
 
 # ---------------------------------------------------------------------------

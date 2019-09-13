@@ -19,11 +19,13 @@ class TreeNode:
 
 	# ------------------------------------------------------
 
-	def __init__(self, label):
+	def __init__(self, label, lHereDoc=None):
 
 		self.hData = {
 			'label': label,
 			}
+		if lHereDoc:
+			self.hData['lHereDoc'] = lHereDoc
 
 		self.parent = None
 		self.nextSibling = None

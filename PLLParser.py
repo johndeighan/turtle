@@ -22,6 +22,32 @@ hMySpecial = {
 
 # ---------------------------------------------------------------------------
 
+def nextAnyLine(fh):
+
+	line = fh.readline()
+	if line:
+		return line
+	else:
+		return None
+
+# ---------------------------------------------------------------------------
+
+def nextNonBlankLine(fh):
+
+	line = fh.readline()
+	if not line:
+		return None
+	line = re.sub(reComment, '', line)
+	line = re.sub(reTrailWS, '', line)
+	while line == '':
+		line = fh.readline()
+		if not line: return None
+		line = re.sub(reComment, '', line)
+		line = re.sub(reTrailWS, '', line)
+	return line
+
+# ---------------------------------------------------------------------------
+
 def _generatorFunc(fh, asTree=None):
 
 	# --- Allow passing in a string
@@ -47,47 +73,47 @@ def _generatorFunc(fh, asTree=None):
 	# --- If asTree is set, it must be a string
 	#     and it will be returned as if it were the first line, with a \n
 	#     Then each subsequent line will be indented once
+
+	flag = None   # might become 'any'
+
 	if asTree:
 		assert isinstance(asTree, str)
-		yield asTree
+		flag = yield asTree
 		if leadWS:
 			while line:
 				# --- Check if the required leadWS is present
-				if (line[:leadLen] != leadWS):
+				if not flag and (line[:leadLen] != leadWS):
 					raise SyntaxError("Missing leading whitespace")
-				yield '\t' + line[leadLen:]
-				line = nextNonBlankLine(fh)
+				flag = yield '\t' + line[leadLen:]
+				if flag:
+					line = nextAnyLine(fh)
+				else:
+					line = nextNonBlankLine(fh)
 		else:
 			while line:
-				yield '\t' + line
-				line = nextNonBlankLine(fh)
+				flag = yield '\t' + line
+				if flag:
+					line = nextAnyLine(fh)
+				else:
+					line = nextNonBlankLine(fh)
 	else:
 		if leadWS:
 			while line:
 				# --- Check if the required leadWS is present
-				if (line[:leadLen] != leadWS):
+				if not flag and (line[:leadLen] != leadWS):
 					raise SyntaxError("Missing leading whitespace")
-				yield line[leadLen:]
-				line = nextNonBlankLine(fh)
+				flag = yield line[leadLen:]
+				if flag:
+					line = nextAnyLine(fh)
+				else:
+					line = nextNonBlankLine(fh)
 		else:
 			while line:
-				yield line
-				line = nextNonBlankLine(fh)
-
-# ---------------------------------------------------------------------------
-
-def nextNonBlankLine(fh):
-
-	line = fh.readline()
-	if not line: return None
-	line = re.sub(reComment, '', line)
-	line = re.sub(reTrailWS, '', line)
-	while line == '':
-		line = fh.readline()
-		if not line: return None
-		line = re.sub(reComment, '', line)
-		line = re.sub(reTrailWS, '', line)
-	return line
+				flag = yield line
+				if flag:
+					line = nextAnyLine(fh)
+				else:
+					line = nextNonBlankLine(fh)
 
 # ---------------------------------------------------------------------------
 
@@ -161,24 +187,31 @@ def parsePLL(fh, debug=False,
 		if debug:
 			print(f" [{newLevel},{numHereDoc}] '{label}'")
 
+		# --- Extract HEREDOC strings, if any
+		lHereDoc = None
 		if numHereDoc > 0:
-			print(f"DEBUG: numHereDoc = {numHereDoc}")
+			lHereDoc = []
 			try:
+				text = ''
 				for i in range(numHereDoc):
-					hereLine = next(gen)
-					print(f"DEBUG: hereLine = '{traceStr(hereLine)}'")
+					hereLine = gen.send('any')
 					while not reAllWS.match(hereLine):
-						print(f"DEBUG: NOT ALL WHITESPACE")
-						hereLine = next(gen)
-						print(f"DEBUG: hereLine = '{traceStr(hereLine)}'")
+						text += hereLine
+						hereLine = gen.send('any')
+					lHereDoc.append(text)
 					numHereDoc -= 1
 			except:
 				raise SyntaxError("Unexpected EOF in HEREDOC string")
 
 		# --- process first non-empty line
 		if len(lReturns) == 0:
-			curNode = constructor(label)
+			curNode = constructor(label, lHereDoc)
 			lReturns.append(curNode)
+
+			# --- This wouldn't make any sense, but in case someone does it
+			if key:
+				lReturns.append(curNode)
+
 			curLevel = newLevel
 			if debug:
 				print(f"   - root node set to '{label}'")
@@ -239,37 +272,31 @@ def parsePLL(fh, debug=False,
 #                   UNIT TESTS
 # ---------------------------------------------------------------------------
 
-test_str = '''
-	top
-		peach
-			fuzzy
-					navel
-			pink
-		apple
-			red
-'''
-
-(test_tree,) = parsePLL(test_str, debug=False)
-
 def test_1():
-	n = ilen(test_tree.children())
+	s = '''
+		top
+			peach
+				fuzzy
+						navel
+				pink
+			apple
+				red
+	'''
+	(tree,) = parsePLL(s, debug=False)
+
+	n = ilen(tree.children())
 	assert n == 2
 
-def test_2():
-	n = ilen(test_tree.descendents())
+	n = ilen(tree.descendents())
 	assert n == 6
 
-def test_3():
-	assert ilen(test_tree.firstChild.children()) == 2
+	assert ilen(tree.firstChild.children()) == 2
 
-def test_4():
-	assert test_tree['label'] == 'top'
+	assert tree['label'] == 'top'
 
-def test_5():
-	assert test_tree.firstChild['label'] == 'peach'
+	assert tree.firstChild['label'] == 'peach'
 
-def test_6():
-	node = test_tree.firstChild.firstChild
+	node = tree.firstChild.firstChild
 	node['label'] == 'fuzzy navel'
 
 # ---------------------------------------------------------------------------
@@ -296,80 +323,72 @@ main
 # ---------------------------------------------------------------------------
 # --- Test option asTree
 
-test_str2 = '''
-	move 15
-	turn 90
-	move 15
-	turn 90
-	'''
-
-
-(test_tree2,) = parsePLL(test_str2, asTree="Turtle")
-
-def test_1():
-	n = ilen(test_tree.children())
-	assert n == 2
-
 def test_2():
-	n = ilen(test_tree.descendents())
-	assert n == 6
+	s = '''
+		move 15
+		turn 90
+		move 15
+		turn 90
+		'''
+	(tree,) = parsePLL(s, asTree="Turtle")
+
+	n = ilen(tree.children())
+	assert n == 4
+
+	n = ilen(tree.descendents())
+	assert n == 5
 
 
 # ---------------------------------------------------------------------------
 # --- Test HEREDOC syntax
 
-test_str3 = '''
-	MenuBar
-		file
-			new
-				handler <<<
-					my $evt = $_[0];
-					$evt.createNewFile();
-					return undef;
+def test_3():
+	s = '''
+		MenuBar
+			file
+				new
+					handler <<<
+						my $evt = $_[0];
+						$evt.createNewFile();
+						return undef;
 
-			open
-		edit
-			undo
-'''
+				open
+			edit
+				undo
+	'''
+	(tree,) = parsePLL(s, debug=False)
 
-(test_tree3,) = parsePLL(test_str3, debug=False)
-
-def test_9():
-	label = test_tree3['label']
+	label = tree['label']
 	assert label == 'MenuBar'
 
-def test_10():
-	n = ilen(test_tree3.children())
+	n = ilen(tree.children())
 	assert n == 2
 
-def test_11():
-	n = ilen(test_tree3.descendents())
+	n = ilen(tree.descendents())
 	assert n == 7
 
 # ---------------------------------------------------------------------------
 #     Test if it will parse fragments
 
-test_str4 = '''
-	MenuBar
-		file
-			new
-			open
-		edit
-			undo
-	Layout
-		row
-			EditField
-			SelectField
-'''
+def test_4():
+	s = '''
+		MenuBar
+			file
+				new
+				open
+			edit
+				undo
+		Layout
+			row
+				EditField
+				SelectField
+	'''
+	(tree,) = parsePLL(s, debug=False)
 
-(test_tree4,) = parsePLL(test_str4, debug=False)
-
-def test_12():
-	n = ilen(test_tree4.descendents())
+	n = ilen(tree.descendents())
 	assert n == 6
 
-def test_13():
-	n = ilen(test_tree4.followingNodes())
+	n = ilen(tree.followingNodes())
 	assert n == 10
 
 # ---------------------------------------------------------------------------

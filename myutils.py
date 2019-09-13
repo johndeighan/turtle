@@ -205,7 +205,7 @@ def cleanup_testcode(glob, *, debug=False):
 	if sys.argv[0].find('pytest') == -1:
 		if debug:
 			print(f"Running normally - clean up {glob['__file__']} test functions/data")
-		reTest = re.compile(r'^test_')
+		reTest = re.compile(r'^(?:test|init)_')
 		for name in [name for name in glob.keys() if reTest.match(name)]:
 			if debug:
 				print(f"Clean up {name}")

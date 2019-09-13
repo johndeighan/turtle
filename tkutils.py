@@ -45,7 +45,7 @@ def addMenuBar(
 		menubar = tk.Menu(window)
 
 	# --- I don't think we need to call rmPrefix() ---
-	tree = parsePLL(rmPrefix(desc), debug=False)
+	(tree,) = parsePLL(rmPrefix(desc), debug=False)
 	if tree['label'] != 'MenuBar':
 		raise Exception("Top level label in menu bar must be 'MenuBar'")
 
