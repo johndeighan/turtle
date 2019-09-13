@@ -52,7 +52,7 @@ class TreeNode:
 	def makeSiblingOf(self, node):
 		assert isinstance(node, TreeNode)
 		assert not self.parent
-		assert node.parent
+		# assert node.parent
 
 		parent = node.parent
 		cur = node
@@ -120,36 +120,63 @@ class TreeNode:
 			yield from child.descendents(level+1)
 			child = child.nextSibling
 
+	def followingNodes(self, level=0):
+		# --- First, visit the node itself
+		yield (level, self)
+
+		# --- Next, visit all of the node's descendents
+		child = self.firstChild
+		while (child):
+			yield from child.descendents(level+1)
+			child = child.nextSibling
+
+		# --- Next, visit siblings and their descendents
+		node = self.nextSibling
+		while node:
+			yield (level, node)
+			child = node.firstChild
+			while (child):
+				yield from child.descendents(level+1)
+				child = child.nextSibling
+			node = node.nextSibling
+
 	def numNodes(self):
 		return ilen(self.descendents())
 
 	def asString(self, level=0, indent='\t'):
-		s = (indent * level) + self.hData['label'] + '\n'
-		child = self.firstChild
-		while child:
-			s += child.asString(level+1, indent)
-			child = child.nextSibling
-		return s
-
-	def asFragment(self, level=0, indent='\t'):
-		child = self.firstChild
 		s = ''
-		while child:
-			s += child.asString(level, indent)
-			child = child.nextSibling
+		cur = self
+		while cur:
+			for (level,node) in cur.descendents():
+				s += (indent * level) + node.hData['label'] + '\n'
+			cur = cur.nextSibling
 		return s
 
 	# -----------------------------------------------------------
 
-	def printTree(self, label=None, *,
+	def printTree(self, desc=None, *,
 	                    level=0, debug=False, indent=None):
 		print()
 		print('='*50)
-		if label:
-			print('-'*6 + ' Tree \'' + label + '\'')
+		if desc:
+			print('-'*6 + ' Tree \'' + desc + '\'')
 			print('-'*50)
 		for (level,node) in self.descendents():
 			node.printNode(level, debug, indent)
+		print('='*50)
+
+	def printFragment(self, desc=None, *,
+	                    level=0, debug=False, indent=None):
+		print()
+		print('='*50)
+		if desc:
+			print('-'*6 + ' Tree \'' + desc + '\'')
+			print('-'*50)
+		cur = self
+		while cur:
+			for (level,node) in cur.descendents():
+				node.printNode(level, debug, indent)
+			cur = cur.nextSibling
 		print('='*50)
 
 	def printNode(self, level=0, debug=True, indent=None):

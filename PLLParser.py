@@ -13,13 +13,17 @@ from TreeNode import TreeNode
 
 # --- Some pre-compiled regular expressions
 
-reLine     = re.compile(r'^(\t*)(.*)$')
+reLine     = re.compile(r'^(\s*)')
 reComment  = re.compile(r'(?<!\\)#.*$')  # ignore escaped '#' char
-strHereDoc = '<<<'
+hMySpecial = {
+	'hereDocStr': '<<<',
+	'keyStr':     '*',
+	}
 
 # ---------------------------------------------------------------------------
 
-def _iterator(fh, asTree=None):
+def _generatorFunc(fh, asTree=None):
+
 	# --- Allow passing in a string
 	if isinstance(fh, str):
 		fh = io.StringIO(fh)
@@ -73,6 +77,7 @@ def _iterator(fh, asTree=None):
 # ---------------------------------------------------------------------------
 
 def nextNonBlankLine(fh):
+
 	line = fh.readline()
 	if not line: return None
 	line = re.sub(reComment, '', line)
@@ -86,34 +91,94 @@ def nextNonBlankLine(fh):
 
 # ---------------------------------------------------------------------------
 
-def parsePLL(fh, debug=False, asTree=None, constr=TreeNode):
+def splitLine(line, hSpecial=hMySpecial):
+	# --- returns (level, label, key, numHereDoc)
+	#     label will have keyStr removed, but hereDocStr's will remain
+
+	hereDocStr = hSpecial.get('hereDocStr', hMySpecial['hereDocStr'])
+	keyStr     = hSpecial.get('keyStr',     hMySpecial['keyStr'])
+
+	result = reLine.search(line)
+	if result:
+
+		# --- Get indentation, if any, to determine level
+		indent = result.group(1)
+		if ' ' in indent:
+			raise SyntaxError(f"Indentation '{traceStr(indent)}'"
+			                   " cannot contain space chars")
+		level = len(indent)
+
+		# --- Check if the key string is present
+		#     If so, strip it to get label, then set key = label
+		key = None
+		if keyStr:
+			if line.find(keyStr, level) == level:
+				label = key = line[level + len(keyStr):]
+			else:
+				label = line[level:]
+		else:
+			label = line[level:]
+
+		# --- Check if there are any HereDoc strings
+		numHereDoc = 0
+		if hereDocStr:
+			pos = label.find(hereDocStr, 0)
+			while pos != -1:
+				numHereDoc += 1
+				pos += len(hereDocStr)
+				pos = label.find(hereDocStr, pos)
+
+		return (level, label, key, numHereDoc)
+	else:
+		raise Exception("What! This cannot happen (reLine fails to match)")
+
+# ---------------------------------------------------------------------------
+
+def parsePLL(fh, debug=False,
+                 asTree=None,
+                 constructor=TreeNode,
+                 hSpecial=hMySpecial):
 	# --- If parameter 'asTree' is provided, it becomes the top-level node
 	#     and the text in fh can be a sequence of nodes
+	#
+	#     hSpecial contains special strings, default is:
+	#        hereDocStr = '<<<'
+	#        keyStr = '*'
+
 	numLines = 0
-	root = None
+	lReturns = []    # first item will be root, other keys possible
 	curLevel = None
 
-	for line in _iterator(fh, asTree):
+	gen = _generatorFunc(fh, asTree)  # allows us to get HEREDOC lines
+	for line in gen:
 		numLines += 1
 
 		if debug:
-			print(f"LINE {numLines}: '{traceStr(line)}'")
+			print(f"LINE {numLines}: '{traceStr(line)}'", end='')
 
-		# --- Determine lines's level and label
-		#        (regexp search will always succeed)
-		result = reLine.search(line)
-		newLevel = len(result.group(1))
-		label = result.group(2)
+		(newLevel, label, key, numHereDoc) = splitLine(line, hSpecial)
 
 		if debug:
-			print(f"LINE {numLines}: [{newLevel}] '{label}'")
+			print(f" [{newLevel},{numHereDoc}] '{label}'")
 
-		if reLeadWS.search(label):
-			raise SyntaxError('Invalid Indentation')
+		if numHereDoc > 0:
+			print(f"DEBUG: numHereDoc = {numHereDoc}")
+			try:
+				for i in range(numHereDoc):
+					hereLine = next(gen)
+					print(f"DEBUG: hereLine = '{traceStr(hereLine)}'")
+					while not reAllWS.match(hereLine):
+						print(f"DEBUG: NOT ALL WHITESPACE")
+						hereLine = next(gen)
+						print(f"DEBUG: hereLine = '{traceStr(hereLine)}'")
+					numHereDoc -= 1
+			except:
+				raise SyntaxError("Unexpected EOF in HEREDOC string")
 
 		# --- process first non-empty line
-		if not root:
-			root = curNode = constr(label)
+		if len(lReturns) == 0:
+			curNode = constructor(label)
+			lReturns.append(curNode)
 			curLevel = newLevel
 			if debug:
 				print(f"   - root node set to '{label}'")
@@ -129,14 +194,13 @@ def parsePLL(fh, debug=False, asTree=None, constr=TreeNode):
 			curNode['label'] += ' ' + label
 
 			# --- Don't change curLevel
-
 		elif diff == 1:
 			# --- create new child node
 			if debug:
 				assert isinstance(curNode, TreeNode)
 				print(f"   - new child of {curNode.asDebugString()}")
 			assert not curNode.firstChild
-			curNode = constr(label).makeChildOf(curNode)
+			curNode = constructor(label).makeChildOf(curNode)
 			curLevel += 1
 
 		elif diff < 0:    # i.e. newLevel < curLevel
@@ -149,27 +213,27 @@ def parsePLL(fh, debug=False, asTree=None, constr=TreeNode):
 				curLevel -= 1
 				curNode = curNode.parent
 				assert curNode
-			curNode = constr(label).makeSiblingOf(curNode)
+			curNode = constructor(label).makeSiblingOf(curNode)
 		elif diff == 0:
 			# --- create new sibling node
 			if debug:
 				print(f"   - new sibling of {curNode.asDebugString()}")
 			assert not curNode.nextSibling
-			curNode = constr(label).makeSiblingOf(curNode)
+			curNode = constructor(label).makeSiblingOf(curNode)
 
 		else:
 			raise Exception("What! This cannot happen")
 
 	if numLines == 0:
 		if asTree:
-			return constr(asTree)
+			return constructor(asTree)
 		else:
 			raise Exception("parsePLL(): No text to parse")
 
-	if not root:
+	if len(lReturns) == 0:
 		raise Exception("parsePLL(): return value is empty")
 
-	return root
+	return lReturns
 
 # ---------------------------------------------------------------------------
 #                   UNIT TESTS
@@ -185,7 +249,7 @@ test_str = '''
 			red
 '''
 
-test_tree = parsePLL(test_str, debug=False)
+(test_tree,) = parsePLL(test_str, debug=False)
 
 def test_1():
 	n = ilen(test_tree.children())
@@ -240,15 +304,15 @@ test_str2 = '''
 	'''
 
 
-test_tree2 = parsePLL(test_str2, asTree="Turtle")
+(test_tree2,) = parsePLL(test_str2, asTree="Turtle")
 
-#def test_1():
-#	n = ilen(test_tree.children())
-#	assert n == 2
+def test_1():
+	n = ilen(test_tree.children())
+	assert n == 2
 
-#def test_2():
-#	n = ilen(test_tree.descendents())
-#	assert n == 6
+def test_2():
+	n = ilen(test_tree.descendents())
+	assert n == 6
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +332,7 @@ test_str3 = '''
 			undo
 '''
 
-test_tree3 = parsePLL(test_str3, debug=False)
+(test_tree3,) = parsePLL(test_str3, debug=False)
 
 def test_9():
 	label = test_tree3['label']
@@ -280,8 +344,33 @@ def test_10():
 
 def test_11():
 	n = ilen(test_tree3.descendents())
-	assert n == 10
+	assert n == 7
 
+# ---------------------------------------------------------------------------
+#     Test if it will parse fragments
+
+test_str4 = '''
+	MenuBar
+		file
+			new
+			open
+		edit
+			undo
+	Layout
+		row
+			EditField
+			SelectField
+'''
+
+(test_tree4,) = parsePLL(test_str4, debug=False)
+
+def test_12():
+	n = ilen(test_tree4.descendents())
+	assert n == 6
+
+def test_13():
+	n = ilen(test_tree4.followingNodes())
+	assert n == 10
 
 # ---------------------------------------------------------------------------
 

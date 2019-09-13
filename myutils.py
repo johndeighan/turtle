@@ -12,7 +12,7 @@ reSep      = re.compile(r'^-+$')
 hSpecial = {
 	"\t": "\\t",
 	"\n": "\\n",
-	" " : ".",
+	" " : "\\s",
 	}
 
 # ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ def getFunc(aModule, funcName):
 
 # ---------------------------------------------------------------------------
 
-def traceStr(str, *, maxchars=10, detailed=False):
+def traceStr(str, *, maxchars=0, detailed=False):
 
 	nTabs = 0
 	nChars = 0
@@ -182,19 +182,15 @@ def traceStr(str, *, maxchars=10, detailed=False):
 	result = reLeadTabs.search(str)
 	totTabs = len(result.group(1))
 	for ch in str:
-		if maxchars and (nChars >= maxchars): break
-		if (ch == '\t'):
-			if (nChars == totTabs-1):
-				outch = '. '
-			elif (nChars == 0):
-				outch = '.'
-			else:
-				outch = '.'
-			nTabs += 1
-		elif ch in hSpecial:
+		if (maxchars > 0) and (nChars >= maxchars): break
+		if ch in hSpecial:
 			outch = hSpecial[ch]
 		else:
-			outch = ch
+			i = ord(ch)
+			if (i < 32) or (i > 126):
+				outch = f"ASCII{i}"
+			else:
+				outch = ch
 		if detailed:
 			print(f"CHAR: '{outch}'")
 		outstr += outch

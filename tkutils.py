@@ -8,6 +8,12 @@ from PLLParser import parsePLL
 
 # ---------------------------------------------------------------------------
 
+def getWindow(desc, *, parent=None):
+
+	pass
+
+# ---------------------------------------------------------------------------
+
 def centerWindow(window):
 
 	window.update_idletasks()
@@ -26,10 +32,10 @@ def centerWindow(window):
 # ---------------------------------------------------------------------------
 
 def addMenuBar(
-		window,        # the window to add the menubar to, or None
-		str,           # string description of the menu
-		*,             # --- following arguments must be called by name
-		handlers=None, # a class or module (class methods won't get self)
+		window,         # the window to add the menubar to, or None
+		desc,           # string description of the menu
+		hHandlers=None, # a dictionary containing functions as values
+		*,              # --- following arguments must be called by name
 		debug=False,
 		tk=TK):
 
@@ -39,12 +45,12 @@ def addMenuBar(
 		menubar = tk.Menu(window)
 
 	# --- I don't think we need to call rmPrefix() ---
-	tree = parsePLL(rmPrefix(str), debug=False)
+	tree = parsePLL(rmPrefix(desc), debug=False)
 	if tree['label'] != 'MenuBar':
 		raise Exception("Top level label in menu bar must be 'MenuBar'")
 
 	for child in tree.children():
-		addMenu(menubar, handlers, child)
+		addMenu(menubar, hHandlers, child)
 
 	if menubar:
 		window['menu'] = menubar
@@ -52,7 +58,7 @@ def addMenuBar(
 
 # ---------------------------------------------------------------------------
 
-def addMenu(parent, handlers, node):
+def addMenu(parent, hHandlers, node):
 
 	label = node['label']
 	isSep = reSep.match(label)
@@ -63,14 +69,14 @@ def addMenu(parent, handlers, node):
 		menu = TK.Menu(parent)
 		parent.add_cascade(menu=menu, label=label)
 		for child in node.children():
-			addMenu(menu, handlers, child)
+			addMenu(menu, hHandlers, child)
 	elif isSep:
 		parent.add_separator()
 	else:
+		name = getCmdFuncName(label)
 		func = None
-		if handlers:
-			name = getCmdMethodName(label)
-			func = getMethod(handlers, name)
+		if hHandlers and name in hHandlers:
+			func = hHandlers[getCmdFuncName(label)]
 			if func:
 				parent.add_command(label=label, command=func)
 			else:
@@ -81,7 +87,7 @@ def addMenu(parent, handlers, node):
 
 # ---------------------------------------------------------------------------
 
-def getCmdMethodName(str):
+def getCmdFuncName(str):
 
 	newstr = re.sub(r'[^A-Za-z0-9]+', '', str)
 	return 'cmd' + newstr
@@ -91,10 +97,10 @@ def getCmdMethodName(str):
 # ---------------------------------------------------------------------------
 
 def test_0():
-	assert getCmdMethodName('New Program') == 'cmdNewProgram'
-	assert getCmdMethodName('About...') == 'cmdAbout'
-	assert getCmdMethodName('A New Menu Item') == 'cmdANewMenuItem'
-	assert getCmdMethodName('? A New Menu Item...') == 'cmdANewMenuItem'
+	assert getCmdFuncName('New Program') == 'cmdNewProgram'
+	assert getCmdFuncName('About...') == 'cmdAbout'
+	assert getCmdFuncName('A New Menu Item') == 'cmdANewMenuItem'
+	assert getCmdFuncName('? A New Menu Item...') == 'cmdANewMenuItem'
 
 
 def test_1():
@@ -103,7 +109,7 @@ def test_1():
 
 	test_str = '''
 			MenuBar
-				Exit
+				Help
 				File      # <---
 					New
 					Open...
@@ -112,9 +118,20 @@ def test_1():
 					Save
 					-----
 					Exit'''
-	addMenuBar(root, test_str, debug=True)
+	def doExit():
+		root.destroy()
+
+	hHandlers = {
+		'cmdExit': doExit,
+		}
+	addMenuBar(root, test_str, debug=True, hHandlers=hHandlers)
 
 	root.mainloop()
 	root.quit()
+
+def cmdExit():
+	global root
+	if root:
+		root.destroy()    # this will cleanly exit the app
 
 cleanup_testcode(globals())   # remove unit tests when not testing

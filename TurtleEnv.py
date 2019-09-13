@@ -47,7 +47,7 @@ class TurtleEnv:
 					Help
 						About...
 				''',
-				handlers=sys.modules[__name__])  # pass in module object
+				globals())
 
 		editor = ProgramEditor(root, defFileName='turtle.txt')
 		editor.grid(0, 0)

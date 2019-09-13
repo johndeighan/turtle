@@ -18,14 +18,18 @@ class PythonNode(TreeNode):
 		self.appendChildNode(node.firstChild)
 		return self    # allow chaining
 
-	def execute(self, hGlobals=None, hLocals=None):
-		programText = self.asFragment()
+	def execute(self, hGlobals=None, hLocals=None, debug=False):
+		programText = self.asString()
+		if debug:
+			self.printProgram(programText)
 		exec(programText, hGlobals, hLocals)
 
-	def printProgram(self):
+	def printProgram(self, text=None):
+		if not text:
+			text = self.asString()
 		print()
 		print('='*48)
 		print('-'*15 + '  Python Program  ' + '-'*15)
 		print('='*48)
-		print(self.asFragment())
+		print(text)
 		print('='*48)

@@ -17,10 +17,10 @@ class TurtleNode(TreeNode):
 		TreeNode.__init__(self, label)
 
 	def execute(self, hGlobals=None, hLocals=None):
-		programText = self.asFragment()
+		programText = self.asString()
 		exec(programText, hGlobals, hLocals)
 
-	def parse(self, *, debug=False):
+	def parseNode(self, *, debug=False):
 		label = self['label']
 		matches = reCommand.search(label)
 		if matches:
@@ -32,10 +32,28 @@ class TurtleNode(TreeNode):
 		else:
 			raise Exception(f"Unknown turtle statement: '{label}'")
 
-	def pythonify(self, *, debug=False):
-		assert isinstance(self, TurtleNode)
-		(cmd, lArgs) = self.parse()
+	def pythonifyProgram(self, *, debug=False, trace=False):
 		if debug:
+			self.printFragment()
+
+		pythonNode = self.pythonifyNode(trace=trace)
+
+		# --- pythonify and append siblings
+		node = self.nextSibling
+		while node:
+			pythonNode.appendNode(node.pythonifyNode(trace=trace))
+			node = node.nextSibling
+		if debug:
+			pythonNode.printFragment()
+		return pythonNode
+
+	def pythonifyNode(self, *, debug=False, trace=False):
+		# --- debug causes turtle & python trees to be printed
+		#     trace causes verbose tracing output
+
+		assert isinstance(self, TurtleNode)
+		(cmd, lArgs) = self.parseNode()
+		if trace:
 			print(f"CMD:  '{cmd}'")
 			print(f"ARGS: '{lArgs}'")
 
@@ -48,11 +66,7 @@ class TurtleNode(TreeNode):
 
 		# --- Handle each command, creating newNode
 		newNode = None
-		if cmd == 'turtle':
-			newNode = PythonNode('Python')
-			for child in self.children():
-				newChild = child.pythonify().makeChildOf(newNode)
-		elif cmd == 'move':
+		if cmd == 'move':
 			newNode = PythonNode(f"turtle.forward({lArgs[0]})")
 		elif cmd == 'turn':
 			newNode = PythonNode(f"turtle.right({lArgs[0]})")
@@ -62,12 +76,12 @@ class TurtleNode(TreeNode):
 			# --- Save current position and heading
 			newNode = PythonNode(f'turtle.moveTo({lArgs[0]}, {lArgs[1]})')
 			for child in self.children():
-				newNode.appendNode(child.pythonify())
+				newNode.appendNode(child.pythonifyNode())
 
 			# --- If next node is an 'at' node, don't re-show the turtle
 			reshow = 'True'
 			if self.nextSibling:
-				(nextCmd, nextlArgs) = self.nextSibling.parse()
+				(nextCmd, nextlArgs) = self.nextSibling.parseNode()
 				if nextCmd == 'at':
 					reshow = 'False'
 
@@ -75,7 +89,7 @@ class TurtleNode(TreeNode):
 		elif cmd == 'repeat':
 			newNode = PythonNode(f"for i in range({lArgs[0]}):")
 			for child in self.children():
-				child.pythonify().makeChildOf(newNode)
+				child.pythonifyNode().makeChildOf(newNode)
 		else:
 			raise Exception(f"Unknown Command: '{cmd}'")
 		return newNode
@@ -85,18 +99,15 @@ class TurtleNode(TreeNode):
 		print('='*48)
 		print('-'*15 + '  Turtle Program  ' + '-'*15)
 		print('='*48)
-		print(self.asFragment())
+		print(self.asString())
 		print('='*48)
 
-def parseTurtle(s):
-	return parsePLL(s, asTree='Turtle', constr=TurtleNode)
-
 def parseAndCompare(s, *, debug=False):
-	turtleTree = parseTurtle(s)
-	turtleTree.printProgram()
-	pythonTree = turtleTree.pythonify()
-	pythonTree.printProgram()
-	return pythonTree
+	turtleNode = parsePLL(s, constr=TurtleNode)
+	# turtleNode.printProgram()
+	pythonNode = turtleNode.pythonifyNode()
+	# pythonNode.printProgram()
+	return pythonNode
 
 # ---------------------------------------------------------------------------
 #                 UNIT TESTS

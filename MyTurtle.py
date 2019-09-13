@@ -17,17 +17,16 @@ class MyTurtle(RawTurtle):
 		self.lSaved = []
 
 	def execute(self, program):
-		turtleTree = parsePLL(program,
-		                      asTree='Turtle', constr=TurtleNode)
-		assert isinstance(turtleTree, TurtleNode)
+		turtleNode = parsePLL(program, constr=TurtleNode)
+		assert isinstance(turtleNode, TurtleNode)
 
-		pythonTree = turtleTree.pythonify()
-		assert isinstance(pythonTree, PythonNode)
+		pythonNode = turtleNode.pythonifyProgram()
+		assert isinstance(pythonNode, PythonNode)
 
 		hGlobals = {
 			'turtle': self,
 			}
-		pythonTree.execute(hGlobals)
+		pythonNode.execute(hGlobals)
 
 	def clear(self):
 		self.screen.reset()
