@@ -99,6 +99,9 @@ class TreeNode:
 	def __delitem__(self, key):
 		del self.hData[key]
 
+	def __contains__(self, key):
+		return key in self.hData
+
 	# -----------------------------------------------------------
 	# --- These methods allow us to iterate over all of a
 	#     TreeNode's children or descendents
