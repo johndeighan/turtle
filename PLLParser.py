@@ -6,6 +6,7 @@ parse a 'Python-like language'
 
 import sys, io, re, pytest
 from more_itertools import ilen
+from pprint import pprint
 
 from myutils import (rmPrefix, reLeadWS, reTrailWS, reAllWS,
                     traceStr, cleanup_testcode)
@@ -17,34 +18,8 @@ reLine     = re.compile(r'^(\s*)')
 reComment  = re.compile(r'(?<!\\)#.*$')  # ignore escaped '#' char
 hMySpecial = {
 	'hereDocStr': '<<<',
-	'keyStr':     '*',
+	'markStr':     '*',
 	}
-
-# ---------------------------------------------------------------------------
-
-def nextAnyLine(fh):
-
-	line = fh.readline()
-	if line:
-		return line
-	else:
-		return None
-
-# ---------------------------------------------------------------------------
-
-def nextNonBlankLine(fh):
-
-	line = fh.readline()
-	if not line:
-		return None
-	line = re.sub(reComment, '', line)
-	line = re.sub(reTrailWS, '', line)
-	while line == '':
-		line = fh.readline()
-		if not line: return None
-		line = re.sub(reComment, '', line)
-		line = re.sub(reTrailWS, '', line)
-	return line
 
 # ---------------------------------------------------------------------------
 
@@ -118,12 +93,13 @@ def _generatorFunc(fh, asTree=None):
 # ---------------------------------------------------------------------------
 
 def splitLine(line, hSpecial=hMySpecial):
-	# --- returns (level, label, key, numHereDoc)
-	#     label will have keyStr removed, but hereDocStr's will remain
+	# --- returns (level, label, marked, numHereDoc)
+	#     label will have markStr removed, but hereDocStr's will remain
 
 	hereDocStr = hSpecial.get('hereDocStr', hMySpecial['hereDocStr'])
-	keyStr     = hSpecial.get('keyStr',     hMySpecial['keyStr'])
+	markStr    = hSpecial.get('markStr',    hMySpecial['markStr'])
 
+	marked = False
 	result = reLine.search(line)
 	if result:
 
@@ -134,12 +110,14 @@ def splitLine(line, hSpecial=hMySpecial):
 			                   " cannot contain space chars")
 		level = len(indent)
 
-		# --- Check if the key string is present
+		# --- Check if the mark string is present
 		#     If so, strip it to get label, then set key = label
-		key = None
-		if keyStr:
-			if line.find(keyStr, level) == level:
-				label = key = line[level + len(keyStr):]
+		if markStr:
+			if line.find(markStr, level) == level:
+				label = line[level + len(markStr):].lstrip()
+				if len(label) == 0:
+					raise SyntaxError("Marked lines cannot be empty")
+				marked = True
 			else:
 				label = line[level:]
 		else:
@@ -154,7 +132,7 @@ def splitLine(line, hSpecial=hMySpecial):
 				pos += len(hereDocStr)
 				pos = label.find(hereDocStr, pos)
 
-		return (level, label, key, numHereDoc)
+		return (level, label, marked, numHereDoc)
 	else:
 		raise Exception("What! This cannot happen (reLine fails to match)")
 
@@ -169,7 +147,7 @@ def parsePLL(fh, debug=False,
 	#
 	#     hSpecial contains special strings, default is:
 	#        hereDocStr = '<<<'
-	#        keyStr = '*'
+	#        markStr = '*'
 
 	numLines = 0
 	lReturns = []    # first item will be root, other keys possible
@@ -182,7 +160,7 @@ def parsePLL(fh, debug=False,
 		if debug:
 			print(f"LINE {numLines}: '{traceStr(line)}'", end='')
 
-		(newLevel, label, key, numHereDoc) = splitLine(line, hSpecial)
+		(newLevel, label, marked, numHereDoc) = splitLine(line, hSpecial)
 
 		if debug:
 			print(f" [{newLevel},{numHereDoc}] '{label}'")
@@ -198,7 +176,7 @@ def parsePLL(fh, debug=False,
 					while not reAllWS.match(hereLine):
 						text += hereLine
 						hereLine = gen.send('any')
-					lHereDoc.append(text)
+					lHereDoc.append(rmPrefix(text))
 					numHereDoc -= 1
 			except:
 				raise SyntaxError("Unexpected EOF in HEREDOC string")
@@ -206,10 +184,12 @@ def parsePLL(fh, debug=False,
 		# --- process first non-empty line
 		if len(lReturns) == 0:
 			curNode = constructor(label, lHereDoc)
+			if lHereDoc:
+				curNode['lHereDoc'] = lHereDoc
 			lReturns.append(curNode)
 
 			# --- This wouldn't make any sense, but in case someone does it
-			if key:
+			if marked:
 				lReturns.append(curNode)
 
 			curLevel = newLevel
@@ -234,6 +214,10 @@ def parsePLL(fh, debug=False,
 				print(f"   - new child of {curNode.asDebugString()}")
 			assert not curNode.firstChild
 			curNode = constructor(label).makeChildOf(curNode)
+			if lHereDoc:
+				curNode['lHereDoc'] = lHereDoc
+			if marked:
+				lReturns.append(curNode)
 			curLevel += 1
 
 		elif diff < 0:    # i.e. newLevel < curLevel
@@ -247,12 +231,20 @@ def parsePLL(fh, debug=False,
 				curNode = curNode.parent
 				assert curNode
 			curNode = constructor(label).makeSiblingOf(curNode)
+			if lHereDoc:
+				curNode['lHereDoc'] = lHereDoc
+			if marked:
+				lReturns.append(curNode)
 		elif diff == 0:
 			# --- create new sibling node
 			if debug:
 				print(f"   - new sibling of {curNode.asDebugString()}")
 			assert not curNode.nextSibling
 			curNode = constructor(label).makeSiblingOf(curNode)
+			if lHereDoc:
+				curNode['lHereDoc'] = lHereDoc
+			if marked:
+				lReturns.append(curNode)
 
 		else:
 			raise Exception("What! This cannot happen")
@@ -267,6 +259,32 @@ def parsePLL(fh, debug=False,
 		raise Exception("parsePLL(): return value is empty")
 
 	return lReturns
+
+# ---------------------------------------------------------------------------
+
+def nextAnyLine(fh):
+
+	line = fh.readline()
+	if line:
+		return line
+	else:
+		return None
+
+# ---------------------------------------------------------------------------
+
+def nextNonBlankLine(fh):
+
+	line = fh.readline()
+	if not line:
+		return None
+	line = re.sub(reComment, '', line)
+	line = re.sub(reTrailWS, '', line)
+	while line == '':
+		line = fh.readline()
+		if not line: return None
+		line = re.sub(reComment, '', line)
+		line = re.sub(reTrailWS, '', line)
+	return line
 
 # ---------------------------------------------------------------------------
 #                   UNIT TESTS
@@ -347,7 +365,7 @@ def test_3():
 		MenuBar
 			file
 				new
-					handler <<<
+					*handler <<<
 						my $evt = $_[0];
 						$evt.createNewFile();
 						return undef;
@@ -356,7 +374,7 @@ def test_3():
 			edit
 				undo
 	'''
-	(tree,) = parsePLL(s, debug=False)
+	(tree, handler) = parsePLL(s, debug=False)
 
 	label = tree['label']
 	assert label == 'MenuBar'
@@ -366,6 +384,10 @@ def test_3():
 
 	n = ilen(tree.descendents())
 	assert n == 7
+
+	assert 'lHereDoc' in handler
+	assert (handler['lHereDoc'][0]
+		== 'my $evt = $_[0];\n$evt.createNewFile();\nreturn undef;\n')
 
 # ---------------------------------------------------------------------------
 #     Test if it will parse fragments
@@ -390,6 +412,39 @@ def test_4():
 
 	n = ilen(tree.followingNodes())
 	assert n == 10
+
+# ---------------------------------------------------------------------------
+#     Test marked subtrees
+
+def test_5():
+	s = '''
+		App
+			* MenuBar
+				file
+					new
+					open
+				edit
+					undo
+			* Layout
+				row
+					EditField
+					SelectField
+	'''
+	(tree, subtree1, subtree2) = parsePLL(s, debug=False)
+
+	n = ilen(tree.descendents())
+	assert n == 11
+
+	assert (subtree1['label'] == 'MenuBar')
+	n = ilen(subtree1.descendents())
+	assert n == 6
+
+	assert (subtree2['label'] == 'Layout')
+	n = ilen(subtree2.descendents())
+	assert n == 4
+
+	n = ilen(tree.followingNodes())
+	assert n == 11
 
 # ---------------------------------------------------------------------------
 
