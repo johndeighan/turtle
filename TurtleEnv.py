@@ -1,12 +1,14 @@
 # TurtleEnv.py
 
 import os, sys, re
+from more_itertools import ilen
 from turtle import TurtleScreen, TK
 
 from tkutils import centerWindow, addMenuBar
 from MyTurtle import MyTurtle
 from TurtleNode import TurtleNode
 from ProgramEditor import ProgramEditor
+from PLLParser import parsePLL
 
 # --- global to this file
 root   = None
@@ -21,12 +23,9 @@ class TurtleEnv:
 		if turtle:
 			raise Exception("You cannot create multiple TurtleEnv's")
 
-		root = TK.Tk()
-		root.resizable(False, False)
-		root.title('Turtle Graphics')
-
-		addMenuBar(root, '''
-				MenuBar
+		appDesc = '''
+			App
+				*MenuBar
 					File
 						New
 						Open...
@@ -46,8 +45,21 @@ class TurtleEnv:
 						Execute
 					Help
 						About...
-				''',
-				globals())
+				*Layout
+					TextArea
+					Canvas
+			'''
+
+		(app, menuBar, layout) = parsePLL(appDesc)
+		assert ilen(app.descendents())     == 24
+		assert ilen(menuBar.descendents()) == 20
+		assert ilen(layout.descendents())  ==  3
+
+		root = TK.Tk()
+		root.resizable(False, False)
+		root.title('Turtle Graphics')
+
+		addMenuBar(root, menuBar, globals())
 
 		editor = ProgramEditor(root, defFileName='turtle.txt')
 		editor.grid(0, 0)

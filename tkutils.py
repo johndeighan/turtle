@@ -3,6 +3,7 @@
 import sys, re
 from turtle import TK
 
+from TreeNode import TreeNode
 from myutils import rmPrefix, reSep, getMethod, cleanup_testcode
 from PLLParser import parsePLL
 
@@ -33,7 +34,7 @@ def centerWindow(window):
 
 def addMenuBar(
 		window,         # the window to add the menubar to, or None
-		desc,           # string description of the menu
+		tree,           # string description of the menu
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
 		debug=False,
@@ -44,8 +45,7 @@ def addMenuBar(
 		window.option_add('*tearOff', False)   # no tearoff menus
 		menubar = tk.Menu(window)
 
-	# --- I don't think we need to call rmPrefix() ---
-	(tree,) = parsePLL(rmPrefix(desc), debug=False)
+	assert isinstance(tree, TreeNode)
 	if tree['label'] != 'MenuBar':
 		raise Exception("Top level label in menu bar must be 'MenuBar'")
 
@@ -124,7 +124,8 @@ def test_1():
 	hHandlers = {
 		'cmdExit': doExit,
 		}
-	addMenuBar(root, test_str, debug=True, hHandlers=hHandlers)
+	(tree,) = parsePLL(test_str)
+	addMenuBar(root, tree, debug=True, hHandlers=hHandlers)
 
 	root.mainloop()
 	root.quit()
