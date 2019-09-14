@@ -9,7 +9,7 @@ from more_itertools import ilen
 from pprint import pprint
 
 from myutils import (rmPrefix, reLeadWS, reTrailWS, reAllWS,
-                    traceStr, cleanup_testcode)
+                    traceStr, cleanup_testcode, firstWordOf)
 from TreeNode import TreeNode
 
 # --- Some pre-compiled regular expressions
@@ -93,6 +93,7 @@ def _generatorFunc(fh, asTree=None):
 # ---------------------------------------------------------------------------
 
 def splitLine(line, hSpecial=hMySpecial):
+
 	# --- returns (level, label, marked, numHereDoc)
 	#     label will have markStr removed, but hereDocStr's will remain
 
@@ -132,6 +133,7 @@ def splitLine(line, hSpecial=hMySpecial):
 				pos += len(hereDocStr)
 				pos = label.find(hereDocStr, pos)
 
+		label = label.replace('\\#', '#')
 		return (level, label, marked, numHereDoc)
 	else:
 		raise Exception("What! This cannot happen (reLine fails to match)")
@@ -191,7 +193,7 @@ def parsePLL(fh, debug=False,
 
 			# --- This wouldn't make any sense, but in case someone does it
 			if marked:
-				hSubTrees[label] = curNode
+				hSubTrees[firstWordOf(label)] = curNode
 
 			curLevel = newLevel
 			if debug:
@@ -216,7 +218,7 @@ def parsePLL(fh, debug=False,
 			assert not curNode.firstChild
 			curNode = constructor(label, lHereDoc).makeChildOf(curNode)
 			if marked:
-				hSubTrees[label] = curNode
+				hSubTrees[firstWordOf(label)] = curNode
 			curLevel += 1
 
 		elif diff < 0:    # i.e. newLevel < curLevel
@@ -231,7 +233,7 @@ def parsePLL(fh, debug=False,
 				assert curNode
 			curNode = constructor(label, lHereDoc).makeSiblingOf(curNode)
 			if marked:
-				hSubTrees[label] = curNode
+				hSubTrees[firstWordOf(label)] = curNode
 		elif diff == 0:
 			# --- create new sibling node
 			if debug:
@@ -239,7 +241,7 @@ def parsePLL(fh, debug=False,
 			assert not curNode.nextSibling
 			curNode = constructor(label, lHereDoc).makeSiblingOf(curNode)
 			if marked:
-				hSubTrees[label] = curNode
+				hSubTrees[firstWordOf(label)] = curNode
 
 		else:
 			raise Exception("What! This cannot happen")
@@ -369,7 +371,7 @@ def test_3():
 				undo
 	'''
 	(tree, hSubTrees) = parsePLL(s, debug=False)
-	handler = hSubTrees['handler <<<']
+	handler = hSubTrees['handler']
 
 	label = tree['label']
 	assert label == 'MenuBar'
@@ -442,6 +444,20 @@ def test_5():
 
 	n = ilen(tree.followingNodes())
 	assert n == 11
+
+def test_6():
+	s = '''
+		bg  # a comment
+			color = \\#abcdef   # not a comment
+	'''
+	(tree, hSubTrees) = parsePLL(s)
+
+	n = ilen(tree.descendents())
+	assert n == 2
+
+	assert tree['label'] == 'bg'
+
+	assert tree.firstChild['label'] == 'color = #abcdef'
 
 # ---------------------------------------------------------------------------
 

@@ -3,7 +3,7 @@
 import sys, re, pytest
 from more_itertools import ilen
 
-from myutils import rmPrefix
+from myutils import rmPrefix, isAllWhiteSpace
 
 class TreeNode:
 	# --- These are a Class variables ----------------------
@@ -17,9 +17,15 @@ class TreeNode:
 
 	reSimpleLabel = re.compile(r'^[A-Za-z0-9_]+$')
 
-	# ------------------------------------------------------
+	# ------------------------------------------------------------------------
 
 	def __init__(self, label, lHereDoc=None):
+
+		# --- label cannot be all whitespace nor start with whitespace
+		if isAllWhiteSpace(label):
+			raise Exception(f"Label '{traceStr(label)}' is all whitespace")
+		if (label.lstrip() != label):
+			raise Exception(f"Label '{traceStr(label)}' has leading whitespace")
 
 		self.hData = {
 			'label': label,
@@ -31,9 +37,9 @@ class TreeNode:
 		self.nextSibling = None
 		self.firstChild = None
 
-	# ------------------------------------------------------
+	# ------------------------------------------------------------------------
 	#    Multiple ways to build up a tree structure
-	# ------------------------------------------------------
+	# ------------------------------------------------------------------------
 
 	def makeChildOf(self, node):
 		assert isinstance(node, TreeNode)
@@ -87,7 +93,7 @@ class TreeNode:
 		self.appendChildNode(TreeNode(label))
 		return self    # allow chaining
 
-	# -----------------------------------------------------------
+	# ------------------------------------------------------------------------
 	# --- These methods allow us to treat a TreeNode object as a dict
 
 	def __getitem__(self, key):
@@ -102,7 +108,7 @@ class TreeNode:
 	def __contains__(self, key):
 		return key in self.hData
 
-	# -----------------------------------------------------------
+	# ------------------------------------------------------------------------
 	# --- These methods allow us to iterate over all of a
 	#     TreeNode's children or descendents
 
@@ -157,7 +163,7 @@ class TreeNode:
 			cur = cur.nextSibling
 		return s
 
-	# -----------------------------------------------------------
+	# ------------------------------------------------------------------------
 
 	def printTree(self, desc=None, *,
 	                    level=0, debug=False, indent=None):
@@ -268,4 +274,3 @@ def test_5():
 def test_6():
 	node = test_tree.firstChild.firstChild
 	node['label'] == 'fuzzy navel'
-

@@ -48,10 +48,14 @@ class TurtleEnv:
 						About...
 				*Layout
 					row
-						ProgramEditor editor
-							turtle.txt
-						Canvas canvas
-							640 x 580
+						ProgramEditor
+							name = editor
+							file = turtle.txt
+						Canvas
+							name = canvas
+							width = 640
+							height = 580
+							bg = \\#cccccc
 			'''
 
 		root = getAppWindow(appDesc, globals())

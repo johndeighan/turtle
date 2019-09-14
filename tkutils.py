@@ -4,7 +4,8 @@ import sys, re
 import tkinter as TK
 
 from TreeNode import TreeNode
-from myutils import rmPrefix, reSep, getMethod, cleanup_testcode
+from myutils import (rmPrefix, isSeparator, getMethod, cleanup_testcode,
+                     splitAssignment)
 from PLLParser import parsePLL
 from ProgramEditor import ProgramEditor
 
@@ -42,7 +43,7 @@ def getAppWindow(appDesc, hHandlers={}, *, tk=TK):
 	saveWidget('root', appWindow)
 
 	addMenuBar(appWindow, hSubTrees['MenuBar'], hHandlers)
-	add_My_Content(appWindow, hSubTrees['Layout'],  hHandlers)
+	addContent(appWindow, hSubTrees['Layout'],  hHandlers)
 
 	centerWindow(appWindow)  # must grid everything before calling
 
@@ -52,11 +53,13 @@ def getAppWindow(appDesc, hHandlers={}, *, tk=TK):
 
 def add_My_Content(
 		window,         # the window to add the menubar to, or None
-		layouttTree,    # tree description of the window content
+		layoutTree,     # tree description of the window content
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
 		debug=False,
 		tk=TK):
+
+	assert layoutTree['label'] == 'Layout'
 
 	editor = ProgramEditor(window, defFileName='turtle.txt')
 	editor.grid(row=0, column=0)
@@ -66,6 +69,65 @@ def add_My_Content(
 	# canvas.config(bg='#cccccc')
 	canvas.grid(row=0, column=1)
 	saveWidget('canvas', canvas)
+
+# ---------------------------------------------------------------------------
+
+def addContent(
+		window,         # the window to add the menubar to, or None
+		layoutTree,     # tree description of the window content
+		hHandlers=None, # a dictionary containing functions as values
+		*,              # --- following arguments must be called by name
+		debug=False,
+		tk=TK):
+
+	assert layoutTree['label'] == 'Layout'
+	for child in layoutTree.children():
+		layoutType = child['label']
+		if layoutType == 'row':
+			col = 0
+			for widgetTree in child.children():
+				widget = createWidget(window, widgetTree, TK)
+				widget.grid(row = 0, column=col)
+				col += 1
+		elif layoutType == 'col':
+			pass
+		elif layoutType == 'grid':
+			pass
+		else:
+			raise Exception(f"addContent():"
+			                f" unknown layout type: '{layoutType}'")
+
+# ---------------------------------------------------------------------------
+
+def createWidget(parent, tree, tk=TK):
+
+	# --- Accumulate all named options
+	hOptions = {}
+	for child in tree.children():
+		label = child['label']
+		try:
+			(key, value) = splitAssignment(label)
+			hOptions[key] = value
+		except Exception as ex:
+			pass
+
+	type = tree['label']
+	widget = None
+	if (type == 'ProgramEditor'):
+		defFile = hOptions.get('file', 'turtle.txt')
+		widget = ProgramEditor(parent, defFileName=defFile)
+	elif (type == 'Canvas'):
+		w = hOptions.get('width', 640)
+		h = hOptions.get('height', 580)
+		bgcolor = hOptions.get('bg', '#cccccc')
+		widget = tk.Canvas(parent, bg=bgcolor, width=w, height=h)
+	else:
+		raise Exception(f"Unknown widget type: '{type}'")
+
+	if 'name' in hOptions:
+		saveWidget(hOptions['name'], widget)
+
+	return widget
 
 # ---------------------------------------------------------------------------
 
@@ -102,7 +164,7 @@ def addMenu(parent, node, hHandlers, *,
 
 	assert isinstance(node, TreeNode)
 	label = node['label']
-	isSep = reSep.match(label)
+	isSep = isSeparator(label)
 
 	if node.hasChildren():
 		if isSep:

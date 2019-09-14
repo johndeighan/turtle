@@ -3,17 +3,30 @@
 import sys, re, io, pytest
 from mydecorators import unittest
 
-reAllWS    = re.compile(r'^\s*$')
-reLeadWS   = re.compile(r'^([\t\ ]+)')   # don't consider '\n'
-reLeadTabs = re.compile(r'^(\t*)')
-reTrailWS  = re.compile(r'\s+$')
-reTrailNL  = re.compile(r'\n$')
-reSep      = re.compile(r'^-+$')
+reAllWS     = re.compile(r'^\s*$')
+reLeadWS    = re.compile(r'^([\t\ ]+)')   # don't consider '\n'
+reLeadTabs  = re.compile(r'^(\t*)')
+reTrailWS   = re.compile(r'\s+$')
+reTrailNL   = re.compile(r'\n$')
+reSep       = re.compile(r'^-+$')
+reFirstWord = re.compile(r'^\s*(\S+)')
+reAssign    = re.compile(r'^\s*(\S+)\s*\=\s*(.*)$')
 hSpecial = {
 	"\t": "\\t",
 	"\n": "\\n",
 	" " : "\\s",
 	}
+
+# ---------------------------------------------------------------------------
+
+def splitAssignment(s):
+
+	assert type(s) == str
+	result = reAssign.search(s)
+	if result:
+		return (result.group(1), result.group(2))
+	else:
+		raise Exception(f"String '{s}' is not an assignment statement")
 
 # ---------------------------------------------------------------------------
 
@@ -52,7 +65,7 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 	#     NOTE: If skipEmptyLines is False, the empty lines are
 	#           included, but not considered for determining the prefix
 
-	while reAllWS.match(firstLine) and (nextPos < len(lLines)):
+	while isAllWhiteSpace(firstLine) and (nextPos < len(lLines)):
 		if skipEmptyLines:
 			if debug:
 				print(f"DEBUG: Line at pos {nextPos-1} '{traceStr(firstLine)}'"
@@ -72,7 +85,7 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 			print(f"DEBUG:    firstLine reset to '{traceStr(firstLine)}'")
 		nextPos += 1
 
-	if (reAllWS.match(firstLine)):
+	if (isAllWhiteSpace(firstLine)):
 		if debug:
 			print(f"DEBUG: All lines empty - return empty list")
 		return []
@@ -87,7 +100,7 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 			print(f"DEBUG: No prefix found - return remaining lines,"
 			      f" sripping trailing empty lines")
 		lNewLines = lLines[nextPos:]
-		while (len(lNewLines) > 0) and reAllWS.match(lNewLines[-1]):
+		while (len(lNewLines) > 0) and isAllWhiteSpace(lNewLines[-1]):
 			del lNewLines[-1]
 		return lNewLines             # nothing to strip off
 
@@ -105,7 +118,7 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 		print(f"DEBUG: Add line '{traceStr(firstLine[nChars:])}'")
 
 	for line in lLines[nextPos:]:
-		if reAllWS.match(line):
+		if isAllWhiteSpace(line):
 			if skipEmptyLines:
 				if debug:
 					print(f"DEBUG: Skip empty line")
@@ -130,7 +143,7 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 
 	if skipEmptyLines:
 		# --- Strip off trailing WS lines
-		while (len(lNewLines) > 0) and reAllWS.match(lNewLines[-1]):
+		while (len(lNewLines) > 0) and isAllWhiteSpace(lNewLines[-1]):
 			del lNewLines[-1]
 			if debug:
 				print(f"DEBUG: Remove last line")
@@ -142,12 +155,31 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 
 # ---------------------------------------------------------------------------
 
-def isAllWS(s):
-	assert type(s) == 'str'
+def isAllWhiteSpace(s):
+	assert type(s) == str
 	if reAllWS.match(s):
 		return True
 	else:
 		return False
+
+# ---------------------------------------------------------------------------
+
+def isSeparator(s):
+	assert type(s) == str
+	if reSep.match(s):
+		return True
+	else:
+		return False
+
+# ---------------------------------------------------------------------------
+
+def firstWordOf(s):
+	assert type(s) == str
+	result = reFirstWord.search(s)
+	if result:
+		return result.group(1)
+	else:
+		return None
 
 # ---------------------------------------------------------------------------
 
@@ -314,6 +346,47 @@ def test_5():
 	assert len(lLines) == 3
 	line6 = fh.readline()   # open
 	assert(line6.find('open') == 4)
+
+def test_6():
+	assert isSeparator('-')
+	assert isSeparator('-----')
+	assert isSeparator('----------------')
+	assert not isSeparator('abc')
+	assert not isSeparator('=====')
+	assert not isSeparator(' -')
+	assert not isSeparator('- ')
+
+def test_7():
+	assert firstWordOf('abc def') == 'abc'
+	assert firstWordOf('') == None
+	assert firstWordOf('   ') == None
+	assert firstWordOf('  abc  def  ghi') == 'abc'
+
+def test_8():
+	# --- Test my understanding of the split method
+	assert ("abc xyz".split()[0] == 'abc')
+	assert ("   abc xyz  ".split()[0] == 'abc')
+	assert ("   abc xyz  ".split()[1] == 'xyz')
+	assert ("   房子 窗口  ".split()[0] == '房子')
+	assert ("   房子 窗口  ".split()[1] == '窗口')
+
+def test_9():
+	assert splitAssignment("x = 9") == ('x', '9')
+	assert splitAssignment("xxx = 90") == ('xxx', '90')
+	assert splitAssignment("  x   =   9") == ('x', '9')
+	assert splitAssignment("x=9") == ('x', '9')
+
+def test_10():
+	with pytest.raises(Exception):
+		result = splitAssignment("x9")
+
+def test_11():
+	try:
+		(key, value) = splitAssignment('name = editor')
+		assert key == 'name'
+		assert value == 'editor'
+	except:
+		raise Exception("Very Bad")
 
 
 cleanup_testcode(globals())
