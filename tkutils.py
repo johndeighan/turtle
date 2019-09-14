@@ -51,27 +51,6 @@ def getAppWindow(appDesc, hHandlers={}, *, tk=TK):
 
 # ---------------------------------------------------------------------------
 
-def add_My_Content(
-		window,         # the window to add the menubar to, or None
-		layoutTree,     # tree description of the window content
-		hHandlers=None, # a dictionary containing functions as values
-		*,              # --- following arguments must be called by name
-		debug=False,
-		tk=TK):
-
-	assert layoutTree['label'] == 'Layout'
-
-	editor = ProgramEditor(window, defFileName='turtle.txt')
-	editor.grid(row=0, column=0)
-	saveWidget('editor', editor)
-
-	canvas = tk.Canvas(window, bg='#cccccc', width=640, height=580)
-	# canvas.config(bg='#cccccc')
-	canvas.grid(row=0, column=1)
-	saveWidget('canvas', canvas)
-
-# ---------------------------------------------------------------------------
-
 def addContent(
 		window,         # the window to add the menubar to, or None
 		layoutTree,     # tree description of the window content
