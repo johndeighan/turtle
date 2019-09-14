@@ -1,7 +1,7 @@
 # tkutils.py
 
 import sys, re
-from turtle import TK
+import tkinter as TK
 
 from TreeNode import TreeNode
 from myutils import rmPrefix, reSep, getMethod, cleanup_testcode
@@ -9,9 +9,26 @@ from PLLParser import parsePLL
 
 # ---------------------------------------------------------------------------
 
-def getWindow(desc, *, parent=None):
+def getAppWindow(appDesc, hHandlers={}, *, title="Main Window", tk=TK):
 
-	pass
+	(app, menuBar, layout) = parsePLL(appDesc)
+
+	appWindow = tk.Tk()
+	appWindow.resizable(False, False)
+	appWindow.title(title)
+
+	addMenuBar(appWindow, menuBar, hHandlers)
+
+	editor = ProgramEditor(appWindow, defFileName='turtle.txt')
+	editor.grid(row=0, column=0)
+
+	canvas = tk.Canvas(appWindow, width="640", height="580")
+	canvas.grid(row=0, column=1)
+
+	centerWindow(appWindow)  # must grid everything before calling
+
+	turtle = MyTurtle(canvas, TurtleScreen(canvas))
+	return appWindow
 
 # ---------------------------------------------------------------------------
 
@@ -58,7 +75,8 @@ def addMenuBar(
 
 # ---------------------------------------------------------------------------
 
-def addMenu(parent, hHandlers, node):
+def addMenu(parent, hHandlers, node, *,
+            tk=TK):
 
 	label = node['label']
 	isSep = reSep.match(label)
@@ -66,7 +84,7 @@ def addMenu(parent, hHandlers, node):
 	if node.hasChildren():
 		if isSep:
 			raise Exception("separator cannot have children")
-		menu = TK.Menu(parent)
+		menu = tk.Menu(parent)
 		parent.add_cascade(menu=menu, label=label)
 		for child in node.children():
 			addMenu(menu, hHandlers, child)
@@ -80,7 +98,7 @@ def addMenu(parent, hHandlers, node):
 			if func:
 				parent.add_command(label=label, command=func)
 			else:
-				parent.add_command(label=label, state=TK.DISABLED)
+				parent.add_command(label=label, state=tk.DISABLED)
 		else:
 			func = lambda: print(f"Invoke MENU ITEM '{label}'")
 			parent.add_command(label=label, command=func)

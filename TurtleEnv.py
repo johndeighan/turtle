@@ -46,14 +46,17 @@ class TurtleEnv:
 					Help
 						About...
 				*Layout
-					TextArea
-					Canvas
+					row
+						ProgramEditor
+							turtle.txt
+						Canvas
+							640 x 580
 			'''
 
 		(app, menuBar, layout) = parsePLL(appDesc)
-		assert ilen(app.descendents())     == 24
+		assert ilen(app.descendents())     == 27
 		assert ilen(menuBar.descendents()) == 20
-		assert ilen(layout.descendents())  ==  3
+		assert ilen(layout.descendents())  ==  6
 
 		root = TK.Tk()
 		root.resizable(False, False)
@@ -62,7 +65,7 @@ class TurtleEnv:
 		addMenuBar(root, menuBar, globals())
 
 		editor = ProgramEditor(root, defFileName='turtle.txt')
-		editor.grid(0, 0)
+		editor.grid(row=0, column=0)
 
 		canvas = self.canvas = TK.Canvas(root, width="640", height="580")
 		canvas.grid(row=0, column=1)

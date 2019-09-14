@@ -73,8 +73,10 @@ class TurtleNode(TreeNode):
 		elif cmd == 'center':
 			newNode = PythonNode(f"turtle.center()")
 		elif cmd == 'at':
+			(xpos, ypos) = (lArgs[0], lArgs[1])
+
 			# --- Save current position and heading
-			newNode = PythonNode(f'turtle.moveTo({lArgs[0]}, {lArgs[1]})')
+			newNode = PythonNode(f'turtle.moveTo({xpos}, {ypos})')
 			for child in self.children():
 				newNode.appendNode(child.pythonifyNode())
 
