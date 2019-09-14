@@ -148,9 +148,13 @@ def parsePLL(fh, debug=False,
 	#     hSpecial contains special strings, default is:
 	#        hereDocStr = '<<<'
 	#        markStr = '*'
+	#
+	#     Returns (rootNode, hSubTrees)
+
+	rootNode = None
+	hSubTrees = {}
 
 	numLines = 0
-	lReturns = []    # first item will be root, other keys possible
 	curLevel = None
 
 	gen = _generatorFunc(fh, asTree)  # allows us to get HEREDOC lines
@@ -182,15 +186,12 @@ def parsePLL(fh, debug=False,
 				raise SyntaxError("Unexpected EOF in HEREDOC string")
 
 		# --- process first non-empty line
-		if len(lReturns) == 0:
-			curNode = constructor(label, lHereDoc)
-			if lHereDoc:
-				curNode['lHereDoc'] = lHereDoc
-			lReturns.append(curNode)
+		if not rootNode:
+			rootNode = curNode = constructor(label, lHereDoc)
 
 			# --- This wouldn't make any sense, but in case someone does it
 			if marked:
-				lReturns.append(curNode)
+				hSubTrees[label] = curNode
 
 			curLevel = newLevel
 			if debug:
@@ -213,11 +214,9 @@ def parsePLL(fh, debug=False,
 				assert isinstance(curNode, TreeNode)
 				print(f"   - new child of {curNode.asDebugString()}")
 			assert not curNode.firstChild
-			curNode = constructor(label).makeChildOf(curNode)
-			if lHereDoc:
-				curNode['lHereDoc'] = lHereDoc
+			curNode = constructor(label, lHereDoc).makeChildOf(curNode)
 			if marked:
-				lReturns.append(curNode)
+				hSubTrees[label] = curNode
 			curLevel += 1
 
 		elif diff < 0:    # i.e. newLevel < curLevel
@@ -230,21 +229,17 @@ def parsePLL(fh, debug=False,
 				curLevel -= 1
 				curNode = curNode.parent
 				assert curNode
-			curNode = constructor(label).makeSiblingOf(curNode)
-			if lHereDoc:
-				curNode['lHereDoc'] = lHereDoc
+			curNode = constructor(label, lHereDoc).makeSiblingOf(curNode)
 			if marked:
-				lReturns.append(curNode)
+				hSubTrees[label] = curNode
 		elif diff == 0:
 			# --- create new sibling node
 			if debug:
 				print(f"   - new sibling of {curNode.asDebugString()}")
 			assert not curNode.nextSibling
-			curNode = constructor(label).makeSiblingOf(curNode)
-			if lHereDoc:
-				curNode['lHereDoc'] = lHereDoc
+			curNode = constructor(label, lHereDoc).makeSiblingOf(curNode)
 			if marked:
-				lReturns.append(curNode)
+				hSubTrees[label] = curNode
 
 		else:
 			raise Exception("What! This cannot happen")
@@ -255,10 +250,10 @@ def parsePLL(fh, debug=False,
 		else:
 			raise Exception("parsePLL(): No text to parse")
 
-	if len(lReturns) == 0:
-		raise Exception("parsePLL(): return value is empty")
+	if not rootNode:
+		raise Exception("parsePLL(): rootNode is empty")
 
-	return lReturns
+	return (rootNode, hSubTrees)
 
 # ---------------------------------------------------------------------------
 
@@ -300,7 +295,7 @@ def test_1():
 			apple
 				red
 	'''
-	(tree,) = parsePLL(s, debug=False)
+	(tree, hSubTrees) = parsePLL(s, debug=False)
 
 	n = ilen(tree.children())
 	assert n == 2
@@ -348,14 +343,13 @@ def test_2():
 		move 15
 		turn 90
 		'''
-	(tree,) = parsePLL(s, asTree="Turtle")
+	(tree, hSubTrees) = parsePLL(s, asTree="Turtle")
 
 	n = ilen(tree.children())
 	assert n == 4
 
 	n = ilen(tree.descendents())
 	assert n == 5
-
 
 # ---------------------------------------------------------------------------
 # --- Test HEREDOC syntax
@@ -374,7 +368,8 @@ def test_3():
 			edit
 				undo
 	'''
-	(tree, handler) = parsePLL(s, debug=False)
+	(tree, hSubTrees) = parsePLL(s, debug=False)
+	handler = hSubTrees['handler <<<']
 
 	label = tree['label']
 	assert label == 'MenuBar'
@@ -405,7 +400,7 @@ def test_4():
 				EditField
 				SelectField
 	'''
-	(tree,) = parsePLL(s, debug=False)
+	(tree, hSubTrees) = parsePLL(s, debug=False)
 
 	n = ilen(tree.descendents())
 	assert n == 6
@@ -430,7 +425,9 @@ def test_5():
 					EditField
 					SelectField
 	'''
-	(tree, subtree1, subtree2) = parsePLL(s, debug=False)
+	(tree, hSubTrees) = parsePLL(s, debug=False)
+	subtree1 = hSubTrees['MenuBar']
+	subtree2 = hSubTrees['Layout']
 
 	n = ilen(tree.descendents())
 	assert n == 11

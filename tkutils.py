@@ -11,7 +11,9 @@ from PLLParser import parsePLL
 
 def getAppWindow(appDesc, hHandlers={}, *, title="Main Window", tk=TK):
 
-	(app, menuBar, layout) = parsePLL(appDesc)
+	(app, hSubTrees) = parsePLL(appDesc)
+	menuBar = hSubTrees['MenuBar']
+	layout  = hSubTrees['Layout']
 
 	appWindow = tk.Tk()
 	appWindow.resizable(False, False)
@@ -142,7 +144,7 @@ def test_1():
 	hHandlers = {
 		'cmdExit': doExit,
 		}
-	(tree,) = parsePLL(test_str)
+	(tree, h) = parsePLL(test_str)
 	addMenuBar(root, tree, debug=True, hHandlers=hHandlers)
 
 	root.mainloop()

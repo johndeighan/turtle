@@ -53,7 +53,9 @@ class TurtleEnv:
 							640 x 580
 			'''
 
-		(app, menuBar, layout) = parsePLL(appDesc)
+		(app, hSubTrees) = parsePLL(appDesc)
+		menuBar = hSubTrees['MenuBar']
+		layout  = hSubTrees['Layout']
 		assert ilen(app.descendents())     == 27
 		assert ilen(menuBar.descendents()) == 20
 		assert ilen(layout.descendents())  ==  6

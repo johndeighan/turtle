@@ -17,7 +17,7 @@ class MyTurtle(RawTurtle):
 		self.lSaved = []
 
 	def execute(self, program, *, speed=1):
-		(turtleNode,) = parsePLL(program, constructor=TurtleNode)
+		(turtleNode, h) = parsePLL(program, constructor=TurtleNode)
 		assert isinstance(turtleNode, TurtleNode)
 
 		pythonNode = turtleNode.pythonifyProgram()
