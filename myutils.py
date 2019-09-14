@@ -142,6 +142,15 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 
 # ---------------------------------------------------------------------------
 
+def isAllWS(s):
+	assert type(s) == 'str'
+	if reAllWS.match(s):
+		return True
+	else:
+		return False
+
+# ---------------------------------------------------------------------------
+
 def getHereDoc(fh):
 	# --- Allow passing in a string
 	if isinstance(fh, str):
