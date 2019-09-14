@@ -6,70 +6,90 @@ import tkinter as TK
 from TreeNode import TreeNode
 from myutils import rmPrefix, reSep, getMethod, cleanup_testcode
 from PLLParser import parsePLL
+from ProgramEditor import ProgramEditor
+
+hWidgets = {}   # maps user provided names to widgets created in this file
+                # adding widget with duplicate name raises an exception
 
 # ---------------------------------------------------------------------------
 
-def getAppWindow(appDesc, hHandlers={}, *, title="Main Window", tk=TK):
+def saveWidget(name, widget):
 
-	(app, hSubTrees) = parsePLL(appDesc)
-	menuBar = hSubTrees['MenuBar']
-	layout  = hSubTrees['Layout']
+	if name in hWidgets:
+		raise Exception(f"saveWidget(): There is already a widget"
+		                f" named '{name}'")
+	hWidgets[name] = widget
+
+# ---------------------------------------------------------------------------
+
+def getWidget(name):
+
+	if name in hWidgets:
+		return hWidgets[name]
+	else:
+		raise Exception(f"getWidget(): There is no widget named '{name}'")
+
+# ---------------------------------------------------------------------------
+
+def getAppWindow(appDesc, hHandlers={}, *, tk=TK):
+
+	(appTree, hSubTrees) = parsePLL(appDesc)
 
 	appWindow = tk.Tk()
 	appWindow.resizable(False, False)
+	title = hSubTrees['Title'].firstChild['label']
 	appWindow.title(title)
+	saveWidget('root', appWindow)
 
-	addMenuBar(appWindow, menuBar, hHandlers)
-
-	editor = ProgramEditor(appWindow, defFileName='turtle.txt')
-	editor.grid(row=0, column=0)
-
-	canvas = tk.Canvas(appWindow, width="640", height="580")
-	canvas.grid(row=0, column=1)
+	addMenuBar(appWindow, hSubTrees['MenuBar'], hHandlers)
+	add_My_Content(appWindow, hSubTrees['Layout'],  hHandlers)
 
 	centerWindow(appWindow)  # must grid everything before calling
 
-	turtle = MyTurtle(canvas, TurtleScreen(canvas))
 	return appWindow
 
 # ---------------------------------------------------------------------------
 
-def centerWindow(window):
-
-	window.update_idletasks()
-
-	# Gets the requested values of the height and width.
-	windowWidth = window.winfo_reqwidth()
-	windowHeight = window.winfo_reqheight()
-
-	# Gets both half the screen width/height and window width/height
-	positionRight = int(window.winfo_screenwidth()/2 - windowWidth/2)
-	positionDown = int(window.winfo_screenheight()/2 - windowHeight/2)
-
-	# --- Positions the window in the center of the page.
-	window.geometry("+{}+{}".format(positionRight, positionDown))
-
-# ---------------------------------------------------------------------------
-
-def addMenuBar(
+def add_My_Content(
 		window,         # the window to add the menubar to, or None
-		tree,           # string description of the menu
+		layouttTree,    # tree description of the window content
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
 		debug=False,
 		tk=TK):
 
+	editor = ProgramEditor(window, defFileName='turtle.txt')
+	editor.grid(row=0, column=0)
+	saveWidget('editor', editor)
+
+	canvas = tk.Canvas(window, bg='#cccccc', width=640, height=580)
+	# canvas.config(bg='#cccccc')
+	canvas.grid(row=0, column=1)
+	saveWidget('canvas', canvas)
+
+# ---------------------------------------------------------------------------
+
+def addMenuBar(
+		window,         # the window to add the menubar to, or None
+		menuTree,       # tree description of the menu
+		hHandlers=None, # a dictionary containing functions as values
+		*,              # --- following arguments must be called by name
+		debug=False,
+		tk=TK):
+
+	assert isinstance(menuTree, TreeNode)
 	menubar = None
 	if window:
 		window.option_add('*tearOff', False)   # no tearoff menus
 		menubar = tk.Menu(window)
 
-	assert isinstance(tree, TreeNode)
-	if tree['label'] != 'MenuBar':
+	assert isinstance(menuTree, TreeNode)
+	if menuTree['label'] != 'MenuBar':
 		raise Exception("Top level label in menu bar must be 'MenuBar'")
 
-	for child in tree.children():
-		addMenu(menubar, hHandlers, child)
+	for subtree in menuTree.children():
+		assert isinstance(subtree, TreeNode)
+		addMenu(menubar, subtree, hHandlers)
 
 	if menubar:
 		window['menu'] = menubar
@@ -77,9 +97,10 @@ def addMenuBar(
 
 # ---------------------------------------------------------------------------
 
-def addMenu(parent, hHandlers, node, *,
+def addMenu(parent, node, hHandlers, *,
             tk=TK):
 
+	assert isinstance(node, TreeNode)
 	label = node['label']
 	isSep = reSep.match(label)
 
@@ -89,7 +110,7 @@ def addMenu(parent, hHandlers, node, *,
 		menu = tk.Menu(parent)
 		parent.add_cascade(menu=menu, label=label)
 		for child in node.children():
-			addMenu(menu, hHandlers, child)
+			addMenu(menu, child, hHandlers)
 	elif isSep:
 		parent.add_separator()
 	else:
@@ -111,6 +132,23 @@ def getCmdFuncName(str):
 
 	newstr = re.sub(r'[^A-Za-z0-9]+', '', str)
 	return 'cmd' + newstr
+
+# ---------------------------------------------------------------------------
+
+def centerWindow(window):
+
+	window.update_idletasks()
+
+	# Gets the requested values of the height and width.
+	windowWidth = window.winfo_reqwidth()
+	windowHeight = window.winfo_reqheight()
+
+	# Gets both half the screen width/height and window width/height
+	positionRight = int(window.winfo_screenwidth()/2 - windowWidth/2)
+	positionDown = int(window.winfo_screenheight()/2 - windowHeight/2)
+
+	# --- Positions the window in the center of the page.
+	window.geometry("+{}+{}".format(positionRight, positionDown))
 
 # ---------------------------------------------------------------------------
 #                     UNIT TESTS

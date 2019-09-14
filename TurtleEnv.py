@@ -4,10 +4,9 @@ import os, sys, re
 from more_itertools import ilen
 from turtle import TurtleScreen, TK
 
-from tkutils import centerWindow, addMenuBar
+from tkutils import getAppWindow, getWidget
 from MyTurtle import MyTurtle
 from TurtleNode import TurtleNode
-from ProgramEditor import ProgramEditor
 from PLLParser import parsePLL
 
 # --- global to this file
@@ -25,6 +24,8 @@ class TurtleEnv:
 
 		appDesc = '''
 			App
+				*Title
+					Turtle Graphics
 				*MenuBar
 					File
 						New
@@ -47,33 +48,23 @@ class TurtleEnv:
 						About...
 				*Layout
 					row
-						ProgramEditor
+						ProgramEditor editor
 							turtle.txt
-						Canvas
+						Canvas canvas
 							640 x 580
 			'''
 
-		(app, hSubTrees) = parsePLL(appDesc)
-		menuBar = hSubTrees['MenuBar']
-		layout  = hSubTrees['Layout']
-		assert ilen(app.descendents())     == 27
-		assert ilen(menuBar.descendents()) == 20
-		assert ilen(layout.descendents())  ==  6
+		root = getAppWindow(appDesc, globals())
 
-		root = TK.Tk()
-		root.resizable(False, False)
-		root.title('Turtle Graphics')
+		editor = getWidget('editor')
+		assert editor
 
-		addMenuBar(root, menuBar, globals())
+		canvas = getWidget('canvas')
+		assert canvas
+		assert isinstance(canvas, TK.Canvas)
 
-		editor = ProgramEditor(root, defFileName='turtle.txt')
-		editor.grid(row=0, column=0)
-
-		canvas = self.canvas = TK.Canvas(root, width="640", height="580")
-		canvas.grid(row=0, column=1)
-
-		centerWindow(root)
-		turtle = MyTurtle(canvas, TurtleScreen(canvas))
+		turtle = MyTurtle(getWidget('canvas'))
+		assert turtle
 
 	def mainloop(self):
 		turtle.mainloop()
