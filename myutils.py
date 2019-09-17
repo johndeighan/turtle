@@ -3,14 +3,14 @@
 import sys, re, io, pytest
 from mydecorators import unittest
 
-reAllWS     = re.compile(r'^\s*$')
-reLeadWS    = re.compile(r'^([\t\ ]+)')   # don't consider '\n'
-reLeadTabs  = re.compile(r'^(\t*)')
-reTrailWS   = re.compile(r'\s+$')
-reTrailNL   = re.compile(r'\n$')
-reSep       = re.compile(r'^-+$')
-reFirstWord = re.compile(r'^\s*(\S+)')
-reAssign    = re.compile(r'^\s*(\S+)\s*\=\s*(.*)$')
+reAllWS      = re.compile(r'^\s*$')
+reLeadWS     = re.compile(r'^([\t\ ]+)')   # don't consider '\n'
+reLeadTabs   = re.compile(r'^(\t*)')
+reTrailWS    = re.compile(r'\s+$')
+reTrailNL    = re.compile(r'\n$')
+reNonSepChar = re.compile(r'^[A-Za-z0-9_\s]')
+reFirstWord  = re.compile(r'^\s*(\S+)')
+reAssign     = re.compile(r'^\s*(\S+)\s*\=\s*(.*)$')
 hSpecial = {
 	"\t": "\\t",
 	"\n": "\\n",
@@ -164,16 +164,34 @@ def isAllWhiteSpace(s):
 
 # ---------------------------------------------------------------------------
 
-def isSeparator(s):
+def isSeparator(s, testch=None):
+	# --- a string is a separator if:
+	#        1. string is not empty
+	#        2. all chars are the same
+	#        3. the char is not a letter, digit, '_' or whitespace
+	#     return value is the character - of length 1
+	#     If testch is provided, return value will be None
+	#        unless the separator char matches it
+
 	assert type(s) == str
-	if reSep.match(s):
-		return True
-	else:
-		return False
+	if (len(s) == 0):
+		return None
+	ch0 = s[0]
+	if reNonSepChar.search(ch0):
+		return None
+	for ch in s[1:]:
+		if ch != ch0:
+			return None
+	if testch:
+		assert len(testch) == 1
+		if (ch0 != testch):
+			return None
+	return ch0
 
 # ---------------------------------------------------------------------------
 
 def firstWordOf(s):
+
 	assert type(s) == str
 	result = reFirstWord.search(s)
 	if result:
@@ -184,6 +202,7 @@ def firstWordOf(s):
 # ---------------------------------------------------------------------------
 
 def getHereDoc(fh):
+
 	# --- Allow passing in a string
 	if isinstance(fh, str):
 		fh = io.StringIO(fh)
@@ -241,6 +260,7 @@ def traceStr(str, *, maxchars=0, detailed=False):
 # ---------------------------------------------------------------------------
 
 def cleanup_testcode(glob, *, debug=False):
+
 	# --- If not running unit tests, remove unneeded functions and data
 	#     to save memory
 	if sys.argv[0].find('pytest') == -1:
@@ -348,13 +368,28 @@ def test_5():
 	assert(line6.find('open') == 4)
 
 def test_6():
-	assert isSeparator('-')
-	assert isSeparator('-----')
-	assert isSeparator('----------------')
+	assert not isSeparator('')
+	assert not isSeparator('X')
+	assert not isSeparator('x')
+	assert not isSeparator('_')
+	assert not isSeparator('4')
+	assert not isSeparator(' ')
+	assert not isSeparator('\t')
+
+	assert isSeparator('-') == '-'
+	assert isSeparator('-----') == '-'
+	assert isSeparator('----------------') == '-'
 	assert not isSeparator('abc')
-	assert not isSeparator('=====')
+	assert isSeparator('=====') == '='
 	assert not isSeparator(' -')
 	assert not isSeparator('- ')
+
+	assert isSeparator('-', '-')
+	assert isSeparator('-----', '-')
+	assert isSeparator('----------------', '-')
+	assert isSeparator('=====', '=')
+	assert isSeparator('=====', '=')
+
 
 def test_7():
 	assert firstWordOf('abc def') == 'abc'

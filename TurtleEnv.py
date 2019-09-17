@@ -4,7 +4,8 @@ import os, sys, re
 from more_itertools import ilen
 from turtle import TurtleScreen, TK
 
-from tkutils import getAppWindow, getWidget
+from tkutils import getAppWindow
+from TKWidgets import findWidgetByName
 from MyTurtle import MyTurtle
 from TurtleNode import TurtleNode
 from PLLParser import parsePLL
@@ -50,24 +51,26 @@ class TurtleEnv:
 					row
 						ProgramEditor
 							name = editor
+							width = 32
+							height = 36
+							sticky = n
 							file = turtle.txt
 						Canvas
 							name = canvas
-							width = 640
-							height = 580
-							bg = \\#cccccc
+							width = 648
+							height = 648
+							sticky = n
 			'''
 
 		root = getAppWindow(appDesc, globals())
 
-		editor = getWidget('editor')
+		editor = findWidgetByName('editor')
 		assert editor
 
-		canvas = getWidget('canvas')
+		canvas = findWidgetByName('canvas')
 		assert canvas
-		assert isinstance(canvas, TK.Canvas)
 
-		turtle = MyTurtle(getWidget('canvas'))
+		turtle = MyTurtle(canvas)
 		assert turtle
 
 	def mainloop(self):
@@ -78,7 +81,7 @@ class TurtleEnv:
 # ---------------------------------------------------------------------------
 
 def cmdNew():
-	editor.clear()
+	editor.setValue('')
 	filename = None
 
 def cmdSave():
@@ -88,7 +91,7 @@ def cmdClear():
 	turtle.clear()
 
 def cmdExecute():
-	turtle.execute(editor.getText())
+	turtle.execute(editor.getValue())
 
 def cmdExit():
 	global root

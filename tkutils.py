@@ -1,46 +1,26 @@
 # tkutils.py
 
 import sys, re
-import tkinter as TK
+import tkinter as tk
+from tkinter import ttk, font
 
 from TreeNode import TreeNode
 from myutils import (rmPrefix, isSeparator, getMethod, cleanup_testcode,
-                     splitAssignment)
+                     traceStr, firstWordOf, splitAssignment)
 from PLLParser import parsePLL
-from ProgramEditor import ProgramEditor
-
-hWidgets = {}   # maps user provided names to widgets created in this file
-                # adding widget with duplicate name raises an exception
+from TKWidgets import getNewWidget, findWidgetByName
 
 # ---------------------------------------------------------------------------
 
-def saveWidget(name, widget):
-
-	if name in hWidgets:
-		raise Exception(f"saveWidget(): There is already a widget"
-		                f" named '{name}'")
-	hWidgets[name] = widget
-
-# ---------------------------------------------------------------------------
-
-def getWidget(name):
-
-	if name in hWidgets:
-		return hWidgets[name]
-	else:
-		raise Exception(f"getWidget(): There is no widget named '{name}'")
-
-# ---------------------------------------------------------------------------
-
-def getAppWindow(appDesc, hHandlers={}, *, tk=TK):
+def getAppWindow(appDesc, hHandlers=None):
 
 	(appTree, hSubTrees) = parsePLL(appDesc)
 
 	appWindow = tk.Tk()
+
 	appWindow.resizable(False, False)
 	title = hSubTrees['Title'].firstChild['label']
 	appWindow.title(title)
-	saveWidget('root', appWindow)
 
 	addMenuBar(appWindow, hSubTrees['MenuBar'], hHandlers)
 	addContent(appWindow, hSubTrees['Layout'],  hHandlers)
@@ -56,57 +36,95 @@ def addContent(
 		layoutTree,     # tree description of the window content
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
-		debug=False,
-		tk=TK):
+		debug=False):
 
 	assert layoutTree['label'] == 'Layout'
 	for child in layoutTree.children():
 		layoutType = child['label']
 		if layoutType == 'row':
-			col = 0
-			for widgetTree in child.children():
-				widget = createWidget(window, widgetTree, TK)
-				widget.grid(row = 0, column=col)
-				col += 1
+			r, c = 0, 0
+			for node in child.children():
+				if isSeparator(node['label'], '-'):
+					c += 1
+				elif isSeparator(node['label'], '='):
+					r += 1
+					c = 0
+				else:
+					widget = createWidget(window, node, hHandlers)
+					widget.grid(r, c)
+					c += 1
 		elif layoutType == 'col':
-			pass
-		elif layoutType == 'grid':
-			pass
+			r, c = 0, 0
+			for node in child.children():
+				if isSeparator(node['label'], '-'):
+					r += 1
+				elif isSeparator(node['label'], '='):
+					c += 1
+					r = 0
+				else:
+					widget = createWidget(window, node, hHandlers)
+					widget.grid(r, c)
+					r += 1
 		else:
 			raise Exception(f"addContent():"
 			                f" unknown layout type: '{layoutType}'")
 
 # ---------------------------------------------------------------------------
 
-def createWidget(parent, tree, tk=TK):
+reWidgetDef = re.compile(r'^\s*(\S+)\s*(.*)$')
 
-	# --- Accumulate all named options
+def createWidget(window, node, hHandlers={}):
+
+	# --- Accumulate all named options for the widget
 	hOptions = {}
-	for child in tree.children():
-		label = child['label']
+	for child in node.children():
 		try:
-			(key, value) = splitAssignment(label)
+			# --- label will always be there
+			(key, value) = splitAssignment(child['label'])
 			hOptions[key] = value
 		except Exception as ex:
 			pass
 
-	type = tree['label']
-	widget = None
-	if (type == 'ProgramEditor'):
-		defFile = hOptions.get('file', 'turtle.txt')
-		widget = ProgramEditor(parent, defFileName=defFile)
-	elif (type == 'Canvas'):
-		w = hOptions.get('width', 640)
-		h = hOptions.get('height', 580)
-		bgcolor = hOptions.get('bg', '#cccccc')
-		widget = tk.Canvas(parent, bg=bgcolor, width=w, height=h)
+	# --- Extract widget type and label
+	result = reWidgetDef.search(node['label'])
+	if result:
+		type = result.group(1)
+		label = hOptions['label'] = result.group(2)
 	else:
-		raise Exception(f"Unknown widget type: '{type}'")
+		raise Exception(f"Invalid Widget Def: '{traceStr(label)}'")
 
-	if 'name' in hOptions:
-		saveWidget(hOptions['name'], widget)
+	handler = getHandlerFunc(label, hHandlers)
+	if handler:
+		hOptions['handler'] = handler
 
-	return widget
+	return getNewWidget(type, window, hOptions)
+
+# ---------------------------------------------------------------------------
+
+def getCmdFuncName(str):
+
+	newstr = re.sub(r'[^A-Za-z0-9]+', '', str)
+	return 'cmd' + newstr
+
+# ---------------------------------------------------------------------------
+
+def getHandlerFunc(label, hHandlers=None, force=False):
+
+	if not label or (type(label) != str) or (len(label) == 0):
+		if force:
+			raise Exception("getHandlerFunc() No label with force = True")
+		else:
+			return None
+	name = getCmdFuncName(label)
+	if (hHandlers
+			and name in hHandlers
+			and hHandlers[name]
+			and callable(hHandlers[name])
+			):
+		return hHandlers[name]
+	if force:
+		return lambda: print(f"MISSING HANDLER '{name}' (label = '{label}')")
+	return None
 
 # ---------------------------------------------------------------------------
 
@@ -115,8 +133,7 @@ def addMenuBar(
 		menuTree,       # tree description of the menu
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
-		debug=False,
-		tk=TK):
+		debug=False):
 
 	assert isinstance(menuTree, TreeNode)
 	menubar = None
@@ -138,8 +155,7 @@ def addMenuBar(
 
 # ---------------------------------------------------------------------------
 
-def addMenu(parent, node, hHandlers, *,
-            tk=TK):
+def addMenu(parent, node, hHandlers={}):
 
 	assert isinstance(node, TreeNode)
 	label = node['label']
@@ -155,24 +171,8 @@ def addMenu(parent, node, hHandlers, *,
 	elif isSep:
 		parent.add_separator()
 	else:
-		name = getCmdFuncName(label)
-		func = None
-		if hHandlers and name in hHandlers:
-			func = hHandlers[getCmdFuncName(label)]
-			if func:
-				parent.add_command(label=label, command=func)
-			else:
-				parent.add_command(label=label, state=tk.DISABLED)
-		else:
-			func = lambda: print(f"Invoke MENU ITEM '{label}'")
-			parent.add_command(label=label, command=func)
-
-# ---------------------------------------------------------------------------
-
-def getCmdFuncName(str):
-
-	newstr = re.sub(r'[^A-Za-z0-9]+', '', str)
-	return 'cmd' + newstr
+		func = getHandlerFunc(label, hHandlers)
+		parent.add_command(label=label, command=func)
 
 # ---------------------------------------------------------------------------
 
@@ -203,7 +203,7 @@ def test_0():
 
 
 def test_1():
-	root = TK.Tk()
+	root = tk.Tk()
 	root.title('Menu Test')
 
 	test_str = '''
@@ -220,11 +220,8 @@ def test_1():
 	def doExit():
 		root.destroy()
 
-	hHandlers = {
-		'cmdExit': doExit,
-		}
 	(tree, h) = parsePLL(test_str)
-	addMenuBar(root, tree, debug=True, hHandlers=hHandlers)
+	addMenuBar(root, tree, debug=True, hHandlers={'cmdExit': doExit})
 
 	root.mainloop()
 	root.quit()

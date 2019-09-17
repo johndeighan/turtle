@@ -8,10 +8,10 @@ from PLLParser import parsePLL
 from PythonNode import PythonNode
 
 class MyTurtle(RawTurtle):
-	def __init__(self, canvas):
-		self.canvas = canvas
-		canvas.config(bg='#cccccc')
-		self.screen = screen = TurtleScreen(canvas)
+	def __init__(self, canvasWidget):
+		self.canvas = canvasWidget.getCanvas()
+		self.canvas.config(bg='#cccccc')
+		self.screen = screen = TurtleScreen(self.canvas)
 
 		super().__init__(screen)
 		self.lSaved = []
