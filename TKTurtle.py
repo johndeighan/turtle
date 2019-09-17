@@ -1,4 +1,4 @@
-# MyTurtle.py
+# TKTurtle.py
 
 from math import hypot
 from turtle import TurtleScreen, RawTurtle, TK
@@ -7,7 +7,7 @@ from TurtleNode import TurtleNode
 from PLLParser import parsePLL
 from PythonNode import PythonNode
 
-class MyTurtle(RawTurtle):
+class TKTurtle(RawTurtle):
 	def __init__(self, canvasWidget):
 		self.canvas = canvasWidget.getCanvas()
 		self.canvas.config(bg='#cccccc')

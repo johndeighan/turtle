@@ -6,7 +6,7 @@ from turtle import TurtleScreen, TK
 
 from tkutils import getAppWindow
 from TKWidgets import findWidgetByName
-from MyTurtle import MyTurtle
+from TKTurtle import TKTurtle
 from TurtleNode import TurtleNode
 from PLLParser import parsePLL
 
@@ -70,7 +70,7 @@ class TurtleEnv:
 		canvas = findWidgetByName('canvas')
 		assert canvas
 
-		turtle = MyTurtle(canvas)
+		turtle = TKTurtle(canvas)
 		assert turtle
 
 	def mainloop(self):

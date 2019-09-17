@@ -300,6 +300,15 @@ class CanvasWidget(_Widget):
 
 # ---------------------------------------------------------------------------
 
+class TurtleWidget(CanvasWidget):
+
+	def newTKWidget(self, parent, hOptions):
+		canvas = super().newTKWidget(parent, hOptions)
+
+		return canvas
+
+# ---------------------------------------------------------------------------
+
 _hConstructors = {
 	'label': LabelWidget,
 	'button': ButtonWidget,
@@ -308,6 +317,7 @@ _hConstructors = {
 	'radiobutton': RadioButtonWidget,
 	'ProgramEditor': ProgramEditorWidget,
 	'Canvas': CanvasWidget,
+	'Turtle': TurtleWidget,
 	}
 
 # ---------------------------------------------------------------------------
@@ -336,11 +346,13 @@ def test_1():
 							sticky = e
 							background = light blue
 						ProgramEditor
-							height = 16
+							height = 10
+							width = 30
 							file = turtle.txt
-						Canvas
-							width = 160
-							height = 160
+						Turtle
+							width = 320
+							height = 320
+							background = light blue
 						editField Name
 							value = John Deighan
 						button  Exit
