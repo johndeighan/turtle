@@ -9,12 +9,14 @@ class PythonNode(TreeNode):
 		TreeNode.__init__(self, label, lHereDoc)
 
 	def append(self, text):
-		(node, h) = parsePLL(text, asTree="Python", constructor=PythonNode)
+		(node, hSubTrees) = parsePLL(text, asTree="Python",
+		                             constructor=PythonNode)
 		self.appendNode(node.firstChild)
 		return self    # allow chaining
 
 	def appendChild(self, text):
-		(node, h) = parsePLL(text, asTree="Python", constructor=PythonNode)
+		(node, hSubTrees) = parsePLL(text, asTree="Python",
+		                             constructor=PythonNode)
 		self.appendChildNode(node.firstChild)
 		return self    # allow chaining
 
@@ -23,6 +25,7 @@ class PythonNode(TreeNode):
 		if debug:
 			self.printProgram(programText)
 		exec(programText, hGlobals, hLocals)
+		return programText
 
 	def printProgram(self, text=None):
 		if not text:

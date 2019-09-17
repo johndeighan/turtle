@@ -1,9 +1,15 @@
 # TKWidgets.py
 
 import os, sys
+from math import hypot
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 from pprint import pprint
+from turtle import TurtleScreen, RawTurtle
+
+from PLLParser import parsePLL
+from TurtleNode import TurtleNode
+from PythonNode import PythonNode
 
 # --- Generally supported keys in hOptions:
 #        label - a text string
@@ -295,6 +301,7 @@ class CanvasWidget(_Widget):
 	def getValue(self):
 		raise Exception("Cannot call getValue() on a canvas widget")
 
+	# --- Eventually, I want to remove this!!!
 	def getCanvas(self):
 		return self.tkWidget
 
@@ -303,9 +310,101 @@ class CanvasWidget(_Widget):
 class TurtleWidget(CanvasWidget):
 
 	def newTKWidget(self, parent, hOptions):
-		canvas = super().newTKWidget(parent, hOptions)
+		return super().newTKWidget(parent, hOptions)
 
-		return canvas
+	def initialize(self, hOptions):
+		self.screen = TurtleScreen(self.tkWidget)
+		self.tkTurtle = RawTurtle(self.screen)
+		if 'speed' in hOptions:
+			self.curSpeed = hOptions['speed']
+		else:
+			self.curSpeed = 1
+		self.lSaveStack = []   # stack to save/restore state on
+
+	def reset(self):
+		self.screen.reset()
+
+	def move(self, n):
+		tkTurtle = self.tkTurtle
+		assert isinstance(tkTurtle, RawTurtle)
+		tkTurtle.speed(self.curSpeed)
+		tkTurtle.forward(n)
+
+	def turn(self, d):
+		tkTurtle = self.tkTurtle
+		assert isinstance(tkTurtle, RawTurtle)
+		tkTurtle.speed(self.curSpeed)
+		tkTurtle.right(d)
+
+	# --- Turtle state includes these fields:
+	#     xpos, ypos, heading, isvisible, isdown
+
+	def saveState(self):
+
+		tkTurtle = self.tkTurtle
+		assert isinstance(tkTurtle, RawTurtle)
+		self.lSaveStack.append([
+				tkTurtle.xcor(),
+				tkTurtle.ycor(),
+				tkTurtle.heading(),
+				tkTurtle.isvisible(),
+				tkTurtle.isdown(),
+				])
+
+	def restoreState(self):
+
+		tkTurtle = self.tkTurtle
+		assert isinstance(tkTurtle, RawTurtle)
+		if len(self.lSaveStack) == 0:
+			raise Exception("restoreState(): No saved state to restore")
+		lState = self.lSaveStack.pop()
+		saved_x = lState[0]
+		saved_y = lState[1]
+
+		cur_x = tkTurtle.xcor()
+		cur_y = tkTurtle.ycor()
+
+		# --- determine whether we need to hide the turtle
+		if tkTurtle.isvisible():
+			dist = hypot(saved_x - cur_x, saved_y - cur_y)
+			mustHide = (dist > 1)
+		else:
+			mustHide = False
+
+		if mustHide:
+			tkTurtle .hideturtle()
+
+		tkTurtle.penup()
+		tkTurtle.setposition(saved_x, saved_y)
+		tkTurtle.setheading(lState[2])
+
+		if lState[3] and mustHide:
+			tkTurtle.showturtle()
+		if lState[4]:
+			tkTurtle.pendown()
+
+	def moveTo(self, x, y):
+		tkTurtle = self.tkTurtle
+		tkTurtle.penup()
+		tkTurtle.hideturtle()
+		tkTurtle.setposition(x, y)
+		tkTurtle.pendown()
+		tkTurtle.showturtle()
+
+	def drawAt(self, x, y, func):
+
+		# --- Must not draw or show movement
+		tkTurtle = self.tkTurtle
+
+		self.saveState()
+		self.moveTo(x, y)
+		func(self)
+		self.restoreState()
+
+	def center(self):
+		# --- should scale and translate to show all of
+		#     the diagram
+		print("CALL turtle.center()")
 
 # ---------------------------------------------------------------------------
 
@@ -337,6 +436,7 @@ def test_1():
 				*MenuBar
 					File
 						Exit
+						Draw
 				*Layout
 					col
 						label   This is a test
@@ -345,23 +445,40 @@ def test_1():
 						label   of my app
 							sticky = e
 							background = light blue
-						ProgramEditor
-							height = 10
-							width = 30
-							file = turtle.txt
 						Turtle
+							name = turtle
 							width = 320
 							height = 320
 							background = light blue
 						editField Name
 							value = John Deighan
 						button  Exit
+						button Draw
+						button Reset
 			''', globals())
+
+	turtle = findWidgetByName('turtle')
+	assert turtle
+	assert isinstance(turtle, TurtleWidget)
 
 	tk.mainloop()
 
 # ----- Handlers -----
 
+def cmdDraw():
+	turtle = findWidgetByName('turtle')
+	turtle.drawAt(0, 0, doSquare)
+	turtle.drawAt(50, 50, doSquare)
+
+def cmdReset():
+	turtle = findWidgetByName('turtle')
+	turtle.reset()
+
 def cmdExit():
 	global test_root
 	test_root.destroy()
+
+def doSquare(turtle):
+	for i in range(4):
+		turtle.move(30)
+		turtle.turn(90)

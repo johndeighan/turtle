@@ -2,4 +2,15 @@ at 0, 0
 	repeat 4
 		move 50
 		turn 90
+
+at 60, 0
+	repeat 4
+		move 50
+		turn 90
+
+at 0, 60
+	repeat 4
+		move 50
+		turn 90
+
 center

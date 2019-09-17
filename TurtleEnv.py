@@ -2,25 +2,28 @@
 
 import os, sys, re
 from more_itertools import ilen
-from turtle import TurtleScreen, TK
+from turtle import TurtleScreen
+import tkinter as tk
 
 from tkutils import getAppWindow
-from TKWidgets import findWidgetByName
-from TKTurtle import TKTurtle
+from TKWidgets import (findWidgetByName, ProgramEditorWidget,
+                       TurtleWidget)
 from TurtleNode import TurtleNode
+from PythonNode import PythonNode
 from PLLParser import parsePLL
 
 # --- global to this file
-root   = None
-editor = None
-turtle = None
+rootWindow   = None
+wTurtleCode   = None
+wPythonCode   = None
+wTurtle = None
 
 class TurtleEnv:
 
 	def __init__(self):
 
-		global root, editor, turtle
-		if turtle:
+		global rootWindow, wTurtleCode, wPythonCode, wTurtle
+		if wTurtle:
 			raise Exception("You cannot create multiple TurtleEnv's")
 
 		appDesc = '''
@@ -43,60 +46,100 @@ class TurtleEnv:
 						-----
 						Preferences...
 					Turtle
-						Clear
+						Reset
 						Execute
 					Help
 						About...
 				*Layout
 					row
+						label Turtle Program
+						label Python Program
+						label Turtle Environment
+
+						====================
+
 						ProgramEditor
-							name = editor
-							width = 32
+							name = turtleCode
+							width = 25
 							height = 36
 							sticky = n
 							file = turtle.txt
-						Canvas
-							name = canvas
+						ProgramEditor
+							name = pythonCode
+							width = 40
+							height = 36
+							sticky = n
+						Turtle
+							name = turtle
 							width = 648
 							height = 648
 							sticky = n
+							background = light gray
 			'''
 
-		root = getAppWindow(appDesc, globals())
+		rootWindow = getAppWindow(appDesc, globals())
 
-		editor = findWidgetByName('editor')
-		assert editor
+		wTurtleCode = findWidgetByName('turtleCode')
+		assert wTurtleCode
+		assert isinstance(wTurtleCode, ProgramEditorWidget)
 
-		canvas = findWidgetByName('canvas')
-		assert canvas
+		wPythonCode = findWidgetByName('pythonCode')
+		assert wPythonCode
+		assert isinstance(wPythonCode, ProgramEditorWidget)
 
-		turtle = TKTurtle(canvas)
-		assert turtle
-
-	def mainloop(self):
-		turtle.mainloop()
+		wTurtle = findWidgetByName('turtle')
+		assert wTurtle
+		assert isinstance(wTurtle, TurtleWidget)
 
 # ---------------------------------------------------------------------------
 #       Menu Item Handler Functions
 # ---------------------------------------------------------------------------
 
 def cmdNew():
-	editor.setValue('')
+	global wTurtleCode
+
+	wTurtleCode.clear()
 	filename = None
 
 def cmdSave():
 	print("MENU save()")
 
-def cmdClear():
-	turtle.clear()
+def cmdReset():
+	global wTurtle
+
+	wTurtle.reset()
 
 def cmdExecute():
-	turtle.execute(editor.getValue())
+	global wTurtleCode, wPythonCode, wTurtle
+
+	assert isinstance(wTurtleCode, ProgramEditorWidget)
+
+	turtleCode = wTurtleCode.getValue()
+	assert type(turtleCode) == str
+
+	if len(turtleCode) == 0:
+		print("No Turtle Code to execute!")
+		return
+
+	(turtleNode, hSubTrees) = parsePLL(turtleCode, constructor=TurtleNode)
+	assert isinstance(turtleNode, TurtleNode)
+
+	pythonNode = turtleNode.pythonify()
+	assert isinstance(pythonNode, PythonNode)
+
+	pythonCode = pythonNode.asString()
+	assert type(pythonCode) == str
+
+	assert isinstance(wPythonCode, ProgramEditorWidget)
+	wPythonCode.setValue(pythonCode)  # put code in python widget
+
+	pythonNode.execute({'turtle': wTurtle})
 
 def cmdExit():
-	global root
-	if root:
-		root.destroy()    # this will cleanly exit the app
+	global rootWindow
+
+	if rootWindow:
+		rootWindow.destroy()    # this will cleanly exit the app
 
 # ---------------------------------------------------------------------------
 #                 UNIT TESTS
@@ -104,4 +147,4 @@ def cmdExit():
 
 def test_1():
 	myenv = TurtleEnv()
-	myenv.mainloop()
+	tk.mainloop()

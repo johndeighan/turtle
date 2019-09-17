@@ -142,6 +142,7 @@ def splitLine(line, hSpecial=hMySpecial):
 
 def parsePLL(fh, debug=False,
                  asTree=None,
+                 *,
                  constructor=TreeNode,
                  hSpecial=hMySpecial):
 	# --- If parameter 'asTree' is provided, it becomes the top-level node
@@ -248,13 +249,14 @@ def parsePLL(fh, debug=False,
 
 	if numLines == 0:
 		if asTree:
-			return constructor(asTree)
+			return (constructor(asTree), hSubTrees)
 		else:
 			raise Exception("parsePLL(): No text to parse")
 
 	if not rootNode:
 		raise Exception("parsePLL(): rootNode is empty")
 
+	assert isinstance(rootNode, constructor)
 	return (rootNode, hSubTrees)
 
 # ---------------------------------------------------------------------------
@@ -297,7 +299,7 @@ def test_1():
 			apple
 				red
 	'''
-	(tree, hSubTrees) = parsePLL(s, debug=False)
+	(tree, hSubTrees) = parsePLL(s)
 
 	n = ilen(tree.children())
 	assert n == 2
