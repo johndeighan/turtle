@@ -8,9 +8,9 @@ def cmdExit():
 
 root = getAppWindow('''
 		App
-			*Title
+			*title
 				My App
-			*MenuBar
+			*menubar
 				File
 					New
 					Open...

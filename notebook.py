@@ -2,8 +2,7 @@
 
 import tkinter as tk
 from tkutils import getAppWindow
-from TKWidgets import (getNewWidget, findWidgetByName, removeSavedWidgets,
-		NotebookWidget)
+from TKWidgets import (getNewWidget, findWidgetByName, NotebookWidget)
 
 def cmdExit():
 	global root
@@ -11,9 +10,9 @@ def cmdExit():
 
 root = getAppWindow('''
 		App
-			*Title
+			*title
 				Test of Notebook widget
-			*MenuBar
+			*menubar
 				File
 					Exit
 					Draw

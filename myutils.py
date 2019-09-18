@@ -1,7 +1,6 @@
 # myutils.py
 
 import sys, re, io, pytest
-from mydecorators import unittest
 
 reAllWS      = re.compile(r'^\s*$')
 reLeadWS     = re.compile(r'^([\t\ ]+)')   # don't consider '\n'
@@ -343,7 +342,7 @@ def test_4():
 def test_5():
 	# --- test the utility function getHereDoc()
 	s = '''
-		MenuBar
+		menubar
 			file
 				new
 					handler <<<
@@ -357,7 +356,7 @@ def test_5():
 '''
 	fh = io.StringIO(s)
 	line1 = fh.readline()   # a blank line
-	line2 = fh.readline()   # MenuBar
+	line2 = fh.readline()   # menubar
 	line3 = fh.readline()   # file
 	line4 = fh.readline()   # new
 	line5 = fh.readline()   # handler <<<

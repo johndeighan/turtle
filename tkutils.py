@@ -8,22 +8,24 @@ from TreeNode import TreeNode
 from myutils import (rmPrefix, isSeparator, getMethod, cleanup_testcode,
                      traceStr, firstWordOf, splitAssignment)
 from PLLParser import parsePLL
-from TKWidgets import getNewWidget, findWidgetByName, removeSavedWidgets
-
+from TKWidgets import getNewWidget, findWidgetByName, FrameWidget
+from WidgetStorage import (removeSavedWidgets, numSavedWidgets,
+                           findWidgetByName)
 # ---------------------------------------------------------------------------
 
 def getAppWindow(appDesc, hHandlers=None, *, debug=False):
 
 	removeSavedWidgets()
+	assert numSavedWidgets() == 0
 	(appTree, hSubTrees) = parsePLL(appDesc)
 
 	appWindow = tk.Tk()
 
 	appWindow.resizable(False, False)
-	title = hSubTrees['Title'].firstChild['label']
+	title = hSubTrees['title'].firstChild['label']
 	appWindow.title(title)
 
-	menuBarNode = hSubTrees['MenuBar']
+	menuBarNode = hSubTrees['menubar']
 	layoutNode = hSubTrees['layout']
 
 	addMenuBar(appWindow, menuBarNode, hHandlers)
@@ -83,16 +85,14 @@ def addRow(window, rowNode, hHandlers, *, debug=False):
 			c = 0
 		else:
 			if label == 'row':
-				tkWidget = ttk.Frame(window)
-				addRow(tkWidget, child, hHandlers)
-				tkWidget.grid(row=r, column=c)
+				widget = FrameWidget(window)
+				addRow(widget.tkWidget, child, hHandlers)
 			elif label == 'col':
-				tkWidget = ttk.Frame(window)
-				addCol(tkWidget, child, hHandlers)
-				tkWidget.grid(row=r, column=c)
+				widget = FrameWidget(window)
+				addCol(widget.tkWidget, child, hHandlers)
 			else:
 				widget = createWidget(window, child, hHandlers)
-				widget.tkWidget.grid(row=r, column=c)
+			widget.grid(r, c)
 			c += 1
 
 # ---------------------------------------------------------------------------
@@ -113,16 +113,14 @@ def addCol(window, colNode, hHandlers, *, debug=False):
 			r = 0
 		else:
 			if label == 'row':
-				tkWidget = ttk.Frame(window)
-				addRow(tkWidget, child, hHandlers)
-				tkWidget.grid(row=r, column=c)
+				widget = FrameWidget(window)
+				addRow(widget.tkWidget, child, hHandlers)
 			elif label == 'col':
-				tkWidget = ttk.Frame(window)
-				addCol(tkWidget, child, hHandlers)
-				tkWidget.grid(row=r, column=c)
+				widget = FrameWidget(window)
+				addCol(widget.tkWidget, child, hHandlers)
 			else:
 				widget = createWidget(window, child, hHandlers)
-				widget.tkWidget.grid(row=r, column=c)
+			widget.grid(r, c)
 			r += 1
 
 # ---------------------------------------------------------------------------
@@ -202,8 +200,8 @@ def addMenuBar(
 		menubar = tk.Menu(window)
 
 	assert isinstance(menuBarNode, TreeNode)
-	if menuBarNode['label'] != 'MenuBar':
-		raise Exception("Top level label in menu bar must be 'MenuBar'")
+	if menuBarNode['label'] != 'menubar':
+		raise Exception("Top level label in menu bar must be 'menubar'")
 
 	for subtree in menuBarNode.children():
 		assert isinstance(subtree, TreeNode)
@@ -267,8 +265,7 @@ def test_1():
 	root.title('Menu Test')
 
 	test_str = '''
-			MenuBar
-				Help
+			menubar
 				File      # <---
 					New
 					Open...
@@ -276,19 +273,17 @@ def test_1():
 					-----
 					Save
 					-----
-					Exit'''
+					Exit
+				Help
+					About...
+			'''
 	def doExit():
 		root.destroy()
 
 	(tree, h) = parsePLL(test_str)
-	addMenuBar(root, tree, debug=True, hHandlers={'cmdExit': doExit})
+	addMenuBar(root, tree, hHandlers={'cmdExit': doExit})
 
 	root.mainloop()
 	root.quit()
-
-def cmdExit():
-	global root
-	if root:
-		root.destroy()    # this will cleanly exit the app
 
 cleanup_testcode(globals())   # remove unit tests when not testing

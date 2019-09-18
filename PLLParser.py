@@ -310,7 +310,7 @@ main
 
 def test_3():
 	s = '''
-		MenuBar
+		menubar
 			file
 				new
 					*handler <<<
@@ -326,7 +326,7 @@ def test_3():
 	handler = hSubTrees['handler']
 
 	label = tree['label']
-	assert label == 'MenuBar'
+	assert label == 'menubar'
 
 	n = ilen(tree.children())
 	assert n == 2
@@ -343,7 +343,7 @@ def test_3():
 
 def test_4():
 	s = '''
-		MenuBar
+		menubar
 			file
 				new
 				open
@@ -368,7 +368,7 @@ def test_4():
 def test_5():
 	s = '''
 		App
-			* MenuBar
+			* menubar
 				file
 					new
 					open
@@ -380,13 +380,13 @@ def test_5():
 					SelectField
 	'''
 	(tree, hSubTrees) = parsePLL(s, debug=False)
-	subtree1 = hSubTrees['MenuBar']
+	subtree1 = hSubTrees['menubar']
 	subtree2 = hSubTrees['layout']
 
 	n = ilen(tree.descendents())
 	assert n == 11
 
-	assert (subtree1['label'] == 'MenuBar')
+	assert (subtree1['label'] == 'menubar')
 	n = ilen(subtree1.descendents())
 	assert n == 6
 

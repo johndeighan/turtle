@@ -10,6 +10,7 @@ from turtle import TurtleScreen, RawTurtle
 from PLLParser import parsePLL
 from TurtleNode import TurtleNode
 from PythonNode import PythonNode
+from WidgetStorage import saveWidget, findWidgetByName
 
 # --- Generally supported keys in hOptions:
 #        label - a text string
@@ -18,26 +19,7 @@ from PythonNode import PythonNode
 
 current_dir = os.getcwd()    # current working directory
 
-# --- This maps user provided names to widgets created in this file
-#     adding widget with duplicate name raises an exception
-hSavedWidgets = {}
-
 _hConstructors = {}   # string name => widget constructor
-
-# ---------------------------------------------------------------------------
-
-def findWidgetByName(name):
-
-	if name in hSavedWidgets:
-		return hSavedWidgets[name]
-	else:
-		raise Exception(f"getSavedWidget():"
-		                f" There is no widget named '{name}'")
-
-# ---------------------------------------------------------------------------
-
-def removeSavedWidgets():
-	hSavedWidgets = {}
 
 # ---------------------------------------------------------------------------
 
@@ -71,7 +53,7 @@ class _Widget():
 		#     so it can later be retrieved by name
 
 		if 'name' in hOptions:
-			_saveWidget(hOptions['name'], self)
+			saveWidget(hOptions['name'], self)
 
 		# --- You can specify an initial value for the widget
 
@@ -153,17 +135,6 @@ class _Widget():
 			return self.handler()
 		else:
 			raise Exception("invoke(): No handler defined")
-
-# ---------------------------------------------------------------------------
-
-def _saveWidget(name, widget):
-	# --- This is called for any widget created
-	#     that has a 'name' key
-
-	if name in hSavedWidgets:
-		raise Exception(f"_saveWidget(): There is already a widget"
-		                f" named '{name}'")
-	hSavedWidgets[name] = widget
 
 # ---------------------------------------------------------------------------
 #             Individual Widgets
@@ -427,7 +398,7 @@ class NotebookWidget(_Widget):
 		tkWidget = ttk.Notebook(parent)
 		plusTab = ProgramEditorWidget(tkWidget, {
 				'width': 25,
-				'height': 36,
+				'height': 18,
 				})
 		tkWidget.add(plusTab.tkWidget, text='+')
 
@@ -482,9 +453,9 @@ def test_1():
 
 	root = tkutils.getAppWindow('''
 			App
-				*Title
+				*title
 					My App
-				*MenuBar
+				*menubar
 					File
 						Exit
 						Draw
@@ -520,9 +491,9 @@ def test_2():
 
 	root = tkutils.getAppWindow('''
 			App
-				*Title
+				*title
 					Test of Notebook widget
-				*MenuBar
+				*menubar
 					File
 						Exit
 						Draw
@@ -534,16 +505,18 @@ def test_2():
 						label   of my app
 							sticky = e
 							background = light blue
-						Turtle
-							name = turtle
-							width = 320
-							height = 320
-							background = light blue
-						notebook
-							name = notebook
-						button  Exit
-						button Draw
-						button Reset
+						row
+							notebook
+								name = notebook
+							Turtle
+								name = turtle
+								width = 320
+								height = 320
+								background = light blue
+						row
+							button  Exit
+							button Draw
+							button Reset
 			''', globals())
 
 	notebook = findWidgetByName('notebook')
