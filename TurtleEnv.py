@@ -121,7 +121,7 @@ def cmdExecute():
 		print("No Turtle Code to execute!")
 		return
 
-	(turtleNode, hSubTrees) = parsePLL(turtleCode, constructor=TurtleNode)
+	(turtleNode, hSubTrees) = parsePLL(turtleCode, TurtleNode)
 	assert isinstance(turtleNode, TurtleNode)
 
 	pythonNode = turtleNode.pythonify()

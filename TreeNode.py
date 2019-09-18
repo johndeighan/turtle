@@ -115,6 +115,14 @@ class TreeNode:
 	def hasChildren(self):
 		return self.firstChild != None
 
+	def numChildren(self):
+		n = 0
+		node = self.firstChild
+		while node:
+			++n
+			node = node.nextSibling
+		return n
+
 	def children(self):
 		child = self.firstChild
 		while (child):

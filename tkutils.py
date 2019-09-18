@@ -8,12 +8,13 @@ from TreeNode import TreeNode
 from myutils import (rmPrefix, isSeparator, getMethod, cleanup_testcode,
                      traceStr, firstWordOf, splitAssignment)
 from PLLParser import parsePLL
-from TKWidgets import getNewWidget, findWidgetByName
+from TKWidgets import getNewWidget, findWidgetByName, removeSavedWidgets
 
 # ---------------------------------------------------------------------------
 
-def getAppWindow(appDesc, hHandlers=None):
+def getAppWindow(appDesc, hHandlers=None, *, debug=False):
 
+	removeSavedWidgets()
 	(appTree, hSubTrees) = parsePLL(appDesc)
 
 	appWindow = tk.Tk()
@@ -22,8 +23,11 @@ def getAppWindow(appDesc, hHandlers=None):
 	title = hSubTrees['Title'].firstChild['label']
 	appWindow.title(title)
 
-	addMenuBar(appWindow, hSubTrees['MenuBar'], hHandlers)
-	addContent(appWindow, hSubTrees['Layout'],  hHandlers)
+	menuBarNode = hSubTrees['MenuBar']
+	layoutNode = hSubTrees['layout']
+
+	addMenuBar(appWindow, menuBarNode, hHandlers)
+	addLayout(appWindow, layoutNode,  hHandlers, debug=debug)
 
 	centerWindow(appWindow)  # must grid everything before calling
 
@@ -31,43 +35,95 @@ def getAppWindow(appDesc, hHandlers=None):
 
 # ---------------------------------------------------------------------------
 
-def addContent(
-		window,         # the window to add the menubar to, or None
-		layoutTree,     # tree description of the window content
+def addLayout(
+		window,         # the window to add content to, or None
+		layoutNode,     # tree description of the window content
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
 		debug=False):
 
-	assert layoutTree['label'] == 'Layout'
-	for child in layoutTree.children():
-		layoutType = child['label']
-		if layoutType == 'row':
-			r, c = 0, 0
-			for node in child.children():
-				if isSeparator(node['label'], '-'):
-					c += 1
-				elif isSeparator(node['label'], '='):
-					r += 1
-					c = 0
-				else:
-					widget = createWidget(window, node, hHandlers)
-					widget.grid(r, c)
-					c += 1
-		elif layoutType == 'col':
-			r, c = 0, 0
-			for node in child.children():
-				if isSeparator(node['label'], '-'):
-					r += 1
-				elif isSeparator(node['label'], '='):
-					c += 1
-					r = 0
-				else:
-					widget = createWidget(window, node, hHandlers)
-					widget.grid(r, c)
-					r += 1
+	assert layoutNode, "Missing layoutNode parameter"
+
+	if debug:
+		layoutNode.printTree("Layout")
+
+	label = layoutNode['label']
+	msg = f"Invalid layoutNode label '{label}'"
+	assert layoutNode['label'] == 'layout', msg
+
+	n = layoutNode.numChildren()
+	assert layoutNode.firstChild
+	assert not layoutNode.firstChild.nextSibling
+#	assert n == 1, f"Invalid layoutNode: {n} children"
+
+	child = layoutNode.firstChild
+	label = child['label']
+	assert label in ('row','col'), f"Invalid layoutNode child: '{label}'"
+
+	if label == 'row':
+		addRow(window, child, hHandlers, debug=debug)
+	else:
+		addCol(window, child, hHandlers, debug=debug)
+
+# ---------------------------------------------------------------------------
+
+def addRow(window, rowNode, hHandlers, *, debug=False):
+
+	if debug:
+		rowNode.printTree('Row')
+
+	# --- We already know that rowNode's label is 'row'
+	r, c = 0, 0
+	for child in rowNode.children():
+		label = child['label']
+		if isSeparator(label, '-'):
+			c += 1
+		elif isSeparator(label, '='):
+			r += 1
+			c = 0
 		else:
-			raise Exception(f"addContent():"
-			                f" unknown layout type: '{layoutType}'")
+			if label == 'row':
+				tkWidget = ttk.Frame(window)
+				addRow(tkWidget, child, hHandlers)
+				tkWidget.grid(row=r, column=c)
+			elif label == 'col':
+				tkWidget = ttk.Frame(window)
+				addCol(tkWidget, child, hHandlers)
+				tkWidget.grid(row=r, column=c)
+			else:
+				widget = createWidget(window, child, hHandlers)
+				widget.tkWidget.grid(row=r, column=c)
+			c += 1
+
+# ---------------------------------------------------------------------------
+
+def addCol(window, colNode, hHandlers, *, debug=False):
+
+	if debug:
+		colNode.printTree('Col')
+
+	# --- We already know that rowNode's label is 'col'
+	r, c = 0, 0
+	for child in colNode.children():
+		label = child['label']
+		if isSeparator(label, '-'):
+			r += 1
+		elif isSeparator(label, '='):
+			c += 1
+			r = 0
+		else:
+			if label == 'row':
+				tkWidget = ttk.Frame(window)
+				addRow(tkWidget, child, hHandlers)
+				tkWidget.grid(row=r, column=c)
+			elif label == 'col':
+				tkWidget = ttk.Frame(window)
+				addCol(tkWidget, child, hHandlers)
+				tkWidget.grid(row=r, column=c)
+			else:
+				widget = createWidget(window, child, hHandlers)
+				widget.tkWidget.grid(row=r, column=c)
+			r += 1
 
 # ---------------------------------------------------------------------------
 
@@ -130,22 +186,26 @@ def getHandlerFunc(label, hHandlers=None, force=False):
 
 def addMenuBar(
 		window,         # the window to add the menubar to, or None
-		menuTree,       # tree description of the menu
+		menuBarNode,    # tree description of the menu
 		hHandlers=None, # a dictionary containing functions as values
 		*,              # --- following arguments must be called by name
 		debug=False):
 
-	assert isinstance(menuTree, TreeNode)
+	assert menuBarNode
+	if debug:
+		menuBarNode.printTree("Menu Bar")
+
+	assert isinstance(menuBarNode, TreeNode)
 	menubar = None
 	if window:
 		window.option_add('*tearOff', False)   # no tearoff menus
 		menubar = tk.Menu(window)
 
-	assert isinstance(menuTree, TreeNode)
-	if menuTree['label'] != 'MenuBar':
+	assert isinstance(menuBarNode, TreeNode)
+	if menuBarNode['label'] != 'MenuBar':
 		raise Exception("Top level label in menu bar must be 'MenuBar'")
 
-	for subtree in menuTree.children():
+	for subtree in menuBarNode.children():
 		assert isinstance(subtree, TreeNode)
 		addMenu(menubar, subtree, hHandlers)
 

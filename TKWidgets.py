@@ -36,7 +36,12 @@ def findWidgetByName(name):
 
 # ---------------------------------------------------------------------------
 
-def getNewWidget(type, parent, hOptions, *, debug=False):
+def removeSavedWidgets():
+	hSavedWidgets = {}
+
+# ---------------------------------------------------------------------------
+
+def getNewWidget(type, parent, hOptions={}, *, debug=False):
 
 	if debug:
 		print(f"getWidget('{type}')")
@@ -52,7 +57,7 @@ def getNewWidget(type, parent, hOptions, *, debug=False):
 
 class _Widget():
 
-	def __init__(self, parent, hOptions):
+	def __init__(self, parent, hOptions={}):
 		super().__init__()
 		self.parent = parent
 		self.tkWidget = None     # holds reference to a tk widget, if any
@@ -102,7 +107,7 @@ class _Widget():
 	def newTKWidget(parent, hOptions):
 		raise Exception("You must define a newTKWidget() method!")
 
-	def allowConfig(self, option):
+	def allowOption(self, option):
 		return option in {
 			'anchor',
 			'font',
@@ -119,7 +124,7 @@ class _Widget():
 		assert isinstance(self.tkWidget, tk.Widget)
 		hTkConfig = {}
 		for (key, value) in hOptions.items():
-			if self.allowConfig(key):
+			if self.allowOption(key):
 				hTkConfig[key] = value
 		self.tkWidget.config(**hTkConfig)
 
@@ -162,6 +167,14 @@ def _saveWidget(name, widget):
 
 # ---------------------------------------------------------------------------
 #             Individual Widgets
+# ---------------------------------------------------------------------------
+
+class FrameWidget(_Widget):
+	# --- name 'frame'
+
+	def newTKWidget(self, parent, hOptions):
+		return ttk.Frame(parent)
+
 # ---------------------------------------------------------------------------
 
 class LabelWidget(_Widget):
@@ -408,7 +421,44 @@ class TurtleWidget(CanvasWidget):
 
 # ---------------------------------------------------------------------------
 
+class NotebookWidget(_Widget):
+
+	def newTKWidget(self, parent, hOptions):
+		tkWidget = ttk.Notebook(parent)
+		plusTab = ProgramEditorWidget(tkWidget, {
+				'width': 25,
+				'height': 36,
+				})
+		tkWidget.add(plusTab.tkWidget, text='+')
+
+		tkWidget.enable_traversal()
+		n = tkWidget.index('end')
+		print(f"There are {n} tabs in the Notebook")
+		return tkWidget
+
+	def allowOption(self, option):
+		return option in {
+			'width',
+			'height',
+			'padding',
+			}
+
+	def add(self, name, text):
+		self.tkWidget.add(widget, text=name)
+
+	def setValue(self, value):
+		raise Exception("Cannot call setValue() on a canvas widget")
+
+	def getValue(self):
+		return self.tkWidget.tab('current')
+
+	def numTabs(self):
+		return self.tkWidget.index('end')
+
+# ---------------------------------------------------------------------------
+
 _hConstructors = {
+	'frame': FrameWidget,
 	'label': LabelWidget,
 	'button': ButtonWidget,
 	'editField': EditFieldWidget,
@@ -417,19 +467,20 @@ _hConstructors = {
 	'ProgramEditor': ProgramEditorWidget,
 	'Canvas': CanvasWidget,
 	'Turtle': TurtleWidget,
+	'notebook': NotebookWidget,
 	}
 
 # ---------------------------------------------------------------------------
 #                 Unit Tests
 # ---------------------------------------------------------------------------
 
-test_root = None
+root = None
 
 def test_1():
 	import tkutils
-	global test_root
+	global root
 
-	test_root = tkutils.getAppWindow('''
+	root = tkutils.getAppWindow('''
 			App
 				*Title
 					My App
@@ -437,7 +488,7 @@ def test_1():
 					File
 						Exit
 						Draw
-				*Layout
+				*layout
 					col
 						label   This is a test
 							sticky = w
@@ -463,6 +514,44 @@ def test_1():
 
 	tk.mainloop()
 
+def test_2():
+	import tkutils
+	global root
+
+	root = tkutils.getAppWindow('''
+			App
+				*Title
+					Test of Notebook widget
+				*MenuBar
+					File
+						Exit
+						Draw
+				*layout
+					col
+						label   This is a test
+							sticky = w
+							background = red
+						label   of my app
+							sticky = e
+							background = light blue
+						Turtle
+							name = turtle
+							width = 320
+							height = 320
+							background = light blue
+						notebook
+							name = notebook
+						button  Exit
+						button Draw
+						button Reset
+			''', globals())
+
+	notebook = findWidgetByName('notebook')
+	assert notebook
+	assert isinstance(notebook, NotebookWidget)
+
+	tk.mainloop()
+
 # ----- Handlers -----
 
 def cmdDraw():
@@ -475,8 +564,8 @@ def cmdReset():
 	turtle.reset()
 
 def cmdExit():
-	global test_root
-	test_root.destroy()
+	global root
+	root.destroy()
 
 def doSquare(turtle):
 	for i in range(4):

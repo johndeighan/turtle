@@ -23,7 +23,7 @@ hMySpecial = {
 
 # ---------------------------------------------------------------------------
 
-def _generatorFunc(fh, asTree=None):
+def _generatorFunc(fh):
 
 	# --- Allow passing in a string
 	if isinstance(fh, str):
@@ -45,50 +45,25 @@ def _generatorFunc(fh, asTree=None):
 		leadWS = result.group(1)
 		leadLen = len(leadWS)
 
-	# --- If asTree is set, it must be a string
-	#     and it will be returned as if it were the first line, with a \n
-	#     Then each subsequent line will be indented once
-
 	flag = None   # might become 'any'
 
-	if asTree:
-		assert isinstance(asTree, str)
-		flag = yield asTree
-		if leadWS:
-			while line:
-				# --- Check if the required leadWS is present
-				if not flag and (line[:leadLen] != leadWS):
-					raise SyntaxError("Missing leading whitespace")
-				flag = yield '\t' + line[leadLen:]
-				if flag:
-					line = nextAnyLine(fh)
-				else:
-					line = nextNonBlankLine(fh)
-		else:
-			while line:
-				flag = yield '\t' + line
-				if flag:
-					line = nextAnyLine(fh)
-				else:
-					line = nextNonBlankLine(fh)
+	if leadWS:
+		while line:
+			# --- Check if the required leadWS is present
+			if not flag and (line[:leadLen] != leadWS):
+				raise SyntaxError("Missing leading whitespace")
+			flag = yield line[leadLen:]
+			if flag:
+				line = nextAnyLine(fh)
+			else:
+				line = nextNonBlankLine(fh)
 	else:
-		if leadWS:
-			while line:
-				# --- Check if the required leadWS is present
-				if not flag and (line[:leadLen] != leadWS):
-					raise SyntaxError("Missing leading whitespace")
-				flag = yield line[leadLen:]
-				if flag:
-					line = nextAnyLine(fh)
-				else:
-					line = nextNonBlankLine(fh)
-		else:
-			while line:
-				flag = yield line
-				if flag:
-					line = nextAnyLine(fh)
-				else:
-					line = nextNonBlankLine(fh)
+		while line:
+			flag = yield line
+			if flag:
+				line = nextAnyLine(fh)
+			else:
+				line = nextNonBlankLine(fh)
 
 # ---------------------------------------------------------------------------
 
@@ -140,14 +115,10 @@ def splitLine(line, hSpecial=hMySpecial):
 
 # ---------------------------------------------------------------------------
 
-def parsePLL(fh, debug=False,
-                 asTree=None,
+def parsePLL(fh, constructor=TreeNode,
                  *,
-                 constructor=TreeNode,
+                 debug=False,
                  hSpecial=hMySpecial):
-	# --- If parameter 'asTree' is provided, it becomes the top-level node
-	#     and the text in fh can be a sequence of nodes
-	#
 	#     hSpecial contains special strings, default is:
 	#        hereDocStr = '<<<'
 	#        markStr = '*'
@@ -160,7 +131,7 @@ def parsePLL(fh, debug=False,
 	numLines = 0
 	curLevel = None
 
-	gen = _generatorFunc(fh, asTree)  # allows us to get HEREDOC lines
+	gen = _generatorFunc(fh)  # allows us to get HEREDOC lines
 	for line in gen:
 		numLines += 1
 
@@ -248,10 +219,7 @@ def parsePLL(fh, debug=False,
 			raise Exception("What! This cannot happen")
 
 	if numLines == 0:
-		if asTree:
-			return (constructor(asTree), hSubTrees)
-		else:
-			raise Exception("parsePLL(): No text to parse")
+		raise Exception("parsePLL(): No text to parse")
 
 	if not rootNode:
 		raise Exception("parsePLL(): rootNode is empty")
@@ -338,24 +306,6 @@ main
 		parsePLL(s)
 
 # ---------------------------------------------------------------------------
-# --- Test option asTree
-
-def test_2():
-	s = '''
-		move 15
-		turn 90
-		move 15
-		turn 90
-		'''
-	(tree, hSubTrees) = parsePLL(s, asTree="Turtle")
-
-	n = ilen(tree.children())
-	assert n == 4
-
-	n = ilen(tree.descendents())
-	assert n == 5
-
-# ---------------------------------------------------------------------------
 # --- Test HEREDOC syntax
 
 def test_3():
@@ -399,7 +349,7 @@ def test_4():
 				open
 			edit
 				undo
-		Layout
+		layout
 			row
 				EditField
 				SelectField
@@ -424,14 +374,14 @@ def test_5():
 					open
 				edit
 					undo
-			* Layout
+			* layout
 				row
 					EditField
 					SelectField
 	'''
 	(tree, hSubTrees) = parsePLL(s, debug=False)
 	subtree1 = hSubTrees['MenuBar']
-	subtree2 = hSubTrees['Layout']
+	subtree2 = hSubTrees['layout']
 
 	n = ilen(tree.descendents())
 	assert n == 11
@@ -440,7 +390,7 @@ def test_5():
 	n = ilen(subtree1.descendents())
 	assert n == 6
 
-	assert (subtree2['label'] == 'Layout')
+	assert (subtree2['label'] == 'layout')
 	n = ilen(subtree2.descendents())
 	assert n == 4
 

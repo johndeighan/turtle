@@ -121,7 +121,7 @@ class TurtleNode(TreeNode):
 		print('='*48)
 
 def parseAndCompare(s, *, debug=False):
-	(turtleNode, hSubTrees) = parsePLL(s, constructor=TurtleNode)
+	(turtleNode, hSubTrees) = parsePLL(s, TurtleNode)
 	assert isinstance(turtleNode, TurtleNode)
 	turtleNode.printProgram()
 
