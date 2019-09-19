@@ -12,5 +12,3 @@ at 0, 60
 	repeat 4
 		move 50
 		turn 90
-
-center

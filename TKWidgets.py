@@ -285,9 +285,10 @@ class CanvasWidget(_Widget):
 	def getValue(self):
 		raise Exception("Cannot call getValue() on a canvas widget")
 
-	# --- Eventually, I want to remove this!!!
-	def getCanvas(self):
-		return self.tkWidget
+	def getBounds(self):
+		# --- return (xmin, ymin, xmax, ymax)
+		canvas = self.tkWidget
+		return (-10, -10, 120, 120)
 
 # ---------------------------------------------------------------------------
 
@@ -300,10 +301,13 @@ class TurtleWidget(CanvasWidget):
 		self.screen = TurtleScreen(self.tkWidget)
 		self.tkTurtle = RawTurtle(self.screen)
 		if 'speed' in hOptions:
-			self.curSpeed = hOptions['speed']
+			self.curSpeed = int(hOptions['speed'])
 		else:
 			self.curSpeed = 1
 		self.lSaveStack = []   # stack to save/restore state on
+
+	def setBounds(self, xmin, ymin, xmax, ymax):
+		self.screen.setworldcoordinates(xmin, ymin, xmax, ymax)
 
 	def reset(self):
 		self.screen.reset()
@@ -384,11 +388,6 @@ class TurtleWidget(CanvasWidget):
 		self.moveTo(x, y)
 		func(self)
 		self.restoreState()
-
-	def center(self):
-		# --- should scale and translate to show all of
-		#     the diagram
-		print("CALL turtle.center()")
 
 # ---------------------------------------------------------------------------
 

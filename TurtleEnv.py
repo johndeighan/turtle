@@ -4,6 +4,10 @@ import os, sys, re
 from more_itertools import ilen
 from turtle import TurtleScreen
 import tkinter as tk
+from tkinter import messagebox
+
+# --- Create alias
+showinfo = messagebox.showinfo
 
 from tkutils import getAppWindow
 from TKWidgets import (findWidgetByName, ProgramEditorWidget,
@@ -11,26 +15,27 @@ from TKWidgets import (findWidgetByName, ProgramEditorWidget,
 from TurtleNode import TurtleNode
 from PythonNode import PythonNode
 from PLLParser import parsePLL
+from TurtleLanguage import compile
 
 # --- global to this file
 rootWindow   = None
 wTurtleCode   = None
 wPythonCode   = None
-wTurtle = None
+wTurtleEnv = None
 
 class TurtleEnv:
 
 	def __init__(self):
 
-		global rootWindow, wTurtleCode, wPythonCode, wTurtle
-		if wTurtle:
+		global rootWindow, wTurtleCode, wPythonCode, wTurtleEnv
+		if wTurtleEnv:
 			raise Exception("You cannot create multiple TurtleEnv's")
 
 		appDesc = '''
 			App
-				*Title
+				*title
 					Turtle Graphics
-				*MenuBar
+				*menubar
 					File
 						New
 						Open...
@@ -47,10 +52,11 @@ class TurtleEnv:
 						Preferences...
 					Turtle
 						Reset
+						Compile
 						Execute
 					Help
 						About...
-				*Layout
+				*layout
 					row
 						label Turtle Program
 						label Python Program
@@ -71,6 +77,7 @@ class TurtleEnv:
 							sticky = n
 						Turtle
 							name = turtle
+							speed = 2
 							width = 648
 							height = 648
 							sticky = n
@@ -87,9 +94,9 @@ class TurtleEnv:
 		assert wPythonCode
 		assert isinstance(wPythonCode, ProgramEditorWidget)
 
-		wTurtle = findWidgetByName('turtle')
-		assert wTurtle
-		assert isinstance(wTurtle, TurtleWidget)
+		wTurtleEnv = findWidgetByName('turtle')
+		assert wTurtleEnv
+		assert isinstance(wTurtleEnv, TurtleWidget)
 
 # ---------------------------------------------------------------------------
 #       Menu Item Handler Functions
@@ -105,35 +112,37 @@ def cmdSave():
 	print("MENU save()")
 
 def cmdReset():
-	global wTurtle
+	global wTurtleEnv
 
-	wTurtle.reset()
+	wTurtleEnv.reset()
 
-def cmdExecute():
-	global wTurtleCode, wPythonCode, wTurtle
+def cmdCompile():
+	global wTurtleCode, wPythonCode
 
 	assert isinstance(wTurtleCode, ProgramEditorWidget)
 
 	turtleCode = wTurtleCode.getValue()
 	assert type(turtleCode) == str
 
-	if len(turtleCode) == 0:
-		print("No Turtle Code to execute!")
+	nChars = len(turtleCode)
+	print(f"LEN turtleCode = {nChars}")
+	if len(turtleCode) <= 1:
+		showinfo(message="No Turtle Code to execute!")
+		wPythonCode.setValue('')
 		return
 
-	(turtleNode, hSubTrees) = parsePLL(turtleCode, TurtleNode)
-	assert isinstance(turtleNode, TurtleNode)
-
-	pythonNode = turtleNode.pythonify()
-	assert isinstance(pythonNode, PythonNode)
-
-	pythonCode = pythonNode.asString()
-	assert type(pythonCode) == str
+	pythonCode = compile(turtleCode)
 
 	assert isinstance(wPythonCode, ProgramEditorWidget)
 	wPythonCode.setValue(pythonCode)  # put code in python widget
 
-	pythonNode.execute({'turtle': wTurtle})
+def cmdExecute():
+	global wTurtleCode, wPythonCode, wTurtleEnv
+
+	cmdCompile()
+	pythonCode = wPythonCode.getValue()
+	assert type(pythonCode) == str
+	exec(pythonCode, {'turtle': wTurtleEnv})
 
 def cmdExit():
 	global rootWindow
