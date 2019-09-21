@@ -15,7 +15,7 @@ from TKWidgets import (findWidgetByName, ProgramEditorWidget,
 from TurtleNode import TurtleNode
 from PythonNode import PythonNode
 from PLLParser import parsePLL
-from TurtleLanguage import compile
+from TurtleLanguage import compile, computeBounds
 
 # --- global to this file
 rootWindow   = None
@@ -117,7 +117,7 @@ def cmdReset():
 	wTurtleEnv.reset()
 
 def cmdCompile():
-	global wTurtleCode, wPythonCode
+	global wTurtleCode, wPythonCode, wTurtleEnv
 
 	assert isinstance(wTurtleCode, ProgramEditorWidget)
 
@@ -125,13 +125,15 @@ def cmdCompile():
 	assert type(turtleCode) == str
 
 	nChars = len(turtleCode)
-	print(f"LEN turtleCode = {nChars}")
 	if len(turtleCode) <= 1:
 		showinfo(message="No Turtle Code to execute!")
 		wPythonCode.setValue('')
 		return
 
 	pythonCode = compile(turtleCode)
+
+	(xmin, ymin, xmax, ymax) = computeBounds(turtleCode, pythonCode)
+	wTurtleEnv.setBounds(xmin, ymin, xmax, ymax)
 
 	assert isinstance(wPythonCode, ProgramEditorWidget)
 	wPythonCode.setValue(pythonCode)  # put code in python widget
@@ -142,6 +144,7 @@ def cmdExecute():
 	cmdCompile()
 	pythonCode = wPythonCode.getValue()
 	assert type(pythonCode) == str
+
 	exec(pythonCode, {'turtle': wTurtleEnv})
 
 def cmdExit():

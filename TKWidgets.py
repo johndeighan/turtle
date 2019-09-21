@@ -300,14 +300,31 @@ class TurtleWidget(CanvasWidget):
 	def initialize(self, hOptions):
 		self.screen = TurtleScreen(self.tkWidget)
 		self.tkTurtle = RawTurtle(self.screen)
+		self.screen.mode('world')
 		if 'speed' in hOptions:
 			self.curSpeed = int(hOptions['speed'])
 		else:
 			self.curSpeed = 1
 		self.lSaveStack = []   # stack to save/restore state on
 
-	def setBounds(self, xmin, ymin, xmax, ymax):
-		self.screen.setworldcoordinates(xmin, ymin, xmax, ymax)
+	def setBounds(self, xmin, ymin, xmax, ymax, padding=15):
+		print(f"BOUNDS(): X = {xmin} .. {xmax}, Y = {ymin} .. {ymax}")
+		width = xmax - xmin
+		height = ymax - ymin
+		if (width > height):
+			halfdiff = (width - height) / 2
+			ymin -= halfdiff
+			ymax += halfdiff
+		else:
+			halfdiff = (height - width) / 2
+			xmin -= halfdiff
+			xmax += halfdiff
+		self.screen.setworldcoordinates(
+				xmin - padding,
+				ymin - padding,
+				xmax + padding,
+				ymax + padding,
+				)
 
 	def reset(self):
 		self.screen.reset()
