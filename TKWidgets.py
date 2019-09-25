@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk, font as tkfont
 from pprint import pprint
 from turtle import TurtleScreen, RawTurtle
+import smokesignal as ss
 
 from PLLParser import parsePLL
 from TurtleNode import TurtleNode
@@ -15,25 +16,7 @@ from WidgetStorage import saveWidget, findWidgetByName
 # --- Generally supported keys in hOptions:
 #        label - a text string
 #        text  - user editable text
-#        handler - function to handle clicking
-
-current_dir = os.getcwd()    # current working directory
-
-_hConstructors = {}   # string name => widget constructor
-
-# ---------------------------------------------------------------------------
-
-def getNewWidget(type, parent, hOptions={}, *, debug=False):
-
-	if debug:
-		print(f"getWidget('{type}')")
-		for (key, value) in hOptions.items():
-			print(f"   {key} => '{value}'")
-
-	constructor = _hConstructors.get(type, None)
-	if not constructor:
-		raise Exception(f"Unknown widget type: '{type}'")
-	return constructor(parent, hOptions)
+#        emit - name of signal to emit if activated
 
 # ---------------------------------------------------------------------------
 
@@ -43,7 +26,6 @@ class _Widget():
 		super().__init__()
 		self.parent = parent
 		self.tkWidget = None     # holds reference to a tk widget, if any
-		self.handler = None
 		if 'sticky' in hOptions:
 			self.sticky = hOptions['sticky']
 		else:
@@ -70,17 +52,6 @@ class _Widget():
 			self.label = hOptions['label']
 		else:
 			self.label = '<Missing Label>'
-
-		# --- You can specify a handler for events on the widget
-		#     It's required for the ButtonWidget
-
-		if 'handler' in hOptions:
-			func = hOptions['handler']
-			if not callable(func):
-				raise Exception("Handler must be callable")
-			self.handler = hOptions['handler']
-		else:
-			self.handler = None
 
 		self.tkWidget = self.newTKWidget(parent, hOptions)
 		self.configWidget(hOptions)
@@ -128,14 +99,6 @@ class _Widget():
 		# --- By default, returns None
 		return None
 
-	def invoke(self):
-		if 'handler' in self and self.handler:
-			if not callable(func):
-				raise Exception("Handler must be callable")
-			return self.handler()
-		else:
-			raise Exception("invoke(): No handler defined")
-
 # ---------------------------------------------------------------------------
 #             Individual Widgets
 # ---------------------------------------------------------------------------
@@ -170,10 +133,11 @@ class ButtonWidget(_Widget):
 
 	def newTKWidget(self, parent, hOptions):
 		label = self.label    # always set by constructor
-		if not self.handler:
-			# --- Create one that simply prints that the button was activated
-			self.handler = lambda: print(f"Button {label} activated")
-		return ttk.Button(parent, text=label, command=self.handler)
+		handler = getHandler('Button', label, hOptions)
+		button = ttk.Button(parent, text=label)
+		button.bind('<KeyPress-Return>', handler)
+		button.bind('<Button-1>', handler)
+		return button
 
 	def setValue(self, value):
 		# --- should set the value in the widget
@@ -206,7 +170,7 @@ class EditFieldWidget(_Widget):
 class CheckBoxWidget(_Widget):
 
 	def newTKWidget(self, parent, hOptions):
-		return ttk.Checkbutton(parent, text=self.label, command=self.handler)
+		return ttk.Checkbutton(parent, text=self.label)
 
 	def setValue(self, value):
 		raise Exception("Cannot call setValue() on a checkbox widget")
@@ -219,8 +183,7 @@ class CheckBoxWidget(_Widget):
 class RadioButtonWidget(_Widget):
 
 	def newTKWidget(self, parent, hOptions):
-		return ttk.Radiobutton(parent, text=self.label,
-		                               command=self.handler)
+		return ttk.Radiobutton(parent, text=self.label)
 
 	def setValue(self, value):
 		raise Exception("Cannot call setValue() on a radio button widget")
@@ -248,8 +211,7 @@ class ProgramEditorWidget(_Widget):
 
 	def initialize(self, hOptions):
 
-		global current_dir
-
+		current_dir = os.getcwd()    # current working directory
 		if 'file' in hOptions:
 			try:
 				path = os.path.join(current_dir, hOptions['file'])
@@ -290,6 +252,9 @@ class CanvasWidget(_Widget):
 		canvas = self.tkWidget
 		return (-10, -10, 120, 120)
 
+	def create_line(self, *args, **kwargs):
+		self.tkWidget.create_line(*args, **kwargs)
+
 # ---------------------------------------------------------------------------
 
 class TurtleWidget(CanvasWidget):
@@ -301,6 +266,9 @@ class TurtleWidget(CanvasWidget):
 		self.screen = TurtleScreen(self.tkWidget)
 		self.tkTurtle = RawTurtle(self.screen)
 		self.screen.mode('world')
+
+		self.tkTurtle.setheading(90)
+
 		if 'speed' in hOptions:
 			self.curSpeed = int(hOptions['speed'])
 		else:
@@ -308,7 +276,6 @@ class TurtleWidget(CanvasWidget):
 		self.lSaveStack = []   # stack to save/restore state on
 
 	def setBounds(self, xmin, ymin, xmax, ymax, padding=15):
-		print(f"BOUNDS(): X = {xmin} .. {xmax}, Y = {ymin} .. {ymax}")
 		width = xmax - xmin
 		height = ymax - ymin
 		if (width > height):
@@ -393,6 +360,7 @@ class TurtleWidget(CanvasWidget):
 		tkTurtle.penup()
 		tkTurtle.hideturtle()
 		tkTurtle.setposition(x, y)
+		tkTurtle.setheading(90)
 		tkTurtle.pendown()
 		tkTurtle.showturtle()
 
@@ -444,18 +412,16 @@ class NotebookWidget(_Widget):
 
 # ---------------------------------------------------------------------------
 
-_hConstructors = {
-	'frame': FrameWidget,
-	'label': LabelWidget,
-	'button': ButtonWidget,
-	'editField': EditFieldWidget,
-	'checkbox': CheckBoxWidget,
-	'radiobutton': RadioButtonWidget,
-	'ProgramEditor': ProgramEditorWidget,
-	'Canvas': CanvasWidget,
-	'Turtle': TurtleWidget,
-	'notebook': NotebookWidget,
-	}
+def getHandler(type, label, hOptions):
+	# --- returns a callback function
+	#     if hOptions['emit'] is defined, handler emits that signal
+	#     else, handler just prints the fact this was called
+
+	emitName = hOptions.get('emit', None)
+	if emitName:
+		return lambda *args, **kwargs: ss.emit(emitName, *args, **kwargs)
+	else:
+		return lambda *args, **kwargs: print(f"{type} '{label}' activated")
 
 # ---------------------------------------------------------------------------
 #                 Unit Tests

@@ -5,8 +5,10 @@ from more_itertools import ilen
 
 from myutils import rmPrefix, isAllWhiteSpace
 
+reAssign = re.compile(r'^(\S+)\s*\=\s*(.*)$')
+
 class TreeNode:
-	# --- These are a Class variables ----------------------
+	# --- These are a Class variables -------------------
 
 	#     Modify this to affect how indentation is printed
 	#     NOTE: Does NOT affect parsing
@@ -108,14 +110,22 @@ class TreeNode:
 	def __contains__(self, key):
 		return key in self.hData
 
+	def get(self, name, defVal=None):
+		return self.hData.get(name, defVal)
+
+	def set(self, name, value):
+		return self.hData.set(name, value)
+
 	# ------------------------------------------------------------------------
 	# --- These methods allow us to iterate over all of a
 	#     TreeNode's children or descendents
 
 	def hasChildren(self):
+
 		return self.firstChild != None
 
 	def numChildren(self):
+
 		n = 0
 		node = self.firstChild
 		while node:
@@ -124,12 +134,14 @@ class TreeNode:
 		return n
 
 	def children(self):
+
 		child = self.firstChild
 		while (child):
 			yield child
 			child = child.nextSibling
 
 	def descendents(self, level=0):
+
 		# --- First, visit the node itself
 		yield (level, self)
 
@@ -140,6 +152,7 @@ class TreeNode:
 			child = child.nextSibling
 
 	def followingNodes(self, level=0):
+
 		# --- First, visit the node itself
 		yield (level, self)
 
@@ -160,9 +173,11 @@ class TreeNode:
 			node = node.nextSibling
 
 	def numNodes(self):
+
 		return ilen(self.descendents())
 
 	def asString(self, level=0, indent='\t'):
+
 		s = ''
 		cur = self
 		while cur:
@@ -170,6 +185,48 @@ class TreeNode:
 				s += (indent * level) + node.hData['label'] + '\n'
 			cur = cur.nextSibling
 		return s
+
+	# ------------------------------------------------------------------------
+	#      Utility Methods
+	# ------------------------------------------------------------------------
+
+	def getOptions(self, *, re=reAssign):
+		# --- re must include 2 groups - name of option and value of option
+		#     only direct children are checked
+
+		hOptions = {}
+		for child in self.children():
+			try:
+				label = child['label']
+				r = re.search(label)
+				if r:
+					hOptions[r.group(1)] = r.group(2)
+			except Exception as ex:
+				pass
+		return hOptions
+
+	# ------------------------------------------------------------------------
+
+	def hasTrueChildren(self, re=reAssign):
+
+		child = self.firstChild
+		while (child):
+			label = child['label']
+			if not re.search(label):
+				return True
+			child = child.nextSibling
+		return False
+
+	# ------------------------------------------------------------------------
+
+	def trueChildren(self, re=reAssign):
+
+		child = self.firstChild
+		while (child):
+			label = child['label']
+			if not re.search(label):
+				yield child
+			child = child.nextSibling
 
 	# ------------------------------------------------------------------------
 
@@ -282,3 +339,80 @@ def test_5():
 def test_6():
 	node = test_tree.firstChild.firstChild
 	node['label'] == 'fuzzy navel'
+
+# --- test using getOptions()
+#        only direct children are checked
+#        if the regexp isn't matched, the child is ignored
+
+def test_7():
+	from PLLParser import parsePLL
+
+	(node,h) = parsePLL('''
+			mainWindow
+				*menubar
+					align=left
+					flow  =  99
+					--------------
+					not an option
+				*layout
+					life=  42
+					meaning   =42
+			''')
+
+	menubar = h['menubar']
+	assert menubar
+	assert isinstance(menubar, TreeNode)
+	hOptions1 = menubar.getOptions()
+	assert hOptions1 == {
+			'align': 'left',
+			'flow': '99',
+			}
+
+	layout = h['layout']
+	assert layout
+	assert isinstance(layout, TreeNode)
+	hOptions2 = layout.getOptions()
+	assert hOptions2 == {
+			'life': '42',
+			'meaning': '42',
+			}
+
+def test_8():
+	from PLLParser import parsePLL
+
+	# --- Note that this regexp allows no space before the colon
+	#     and requires at least one space after the colon
+	reWithColon = re.compile(r'^(\S+):\s+(.*)$')
+	(node,h) = parsePLL('''
+			mainWindow
+				*menubar
+					align: left
+					flow:    99
+					notAnOption : text
+					notAnOption:moretext
+					--------------
+					not an option
+				*layout
+					life:  42
+					meaning:   42
+			''')
+
+	menubar = h['menubar']
+	assert menubar
+	assert isinstance(menubar, TreeNode)
+	hOptions1 = menubar.getOptions(re=reWithColon)
+	assert hOptions1 == {
+			'align': 'left',
+			'flow': '99',
+			}
+
+	layout = h['layout']
+	assert layout
+	assert isinstance(layout, TreeNode)
+	hOptions2 = layout.getOptions(re=reWithColon)
+	assert hOptions2 == {
+			'life': '42',
+			'meaning': '42',
+			}
+
+

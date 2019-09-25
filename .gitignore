@@ -10,3 +10,5 @@ simple_tree.png
 tinker.py
 turtle0.py
 test*.py
+*.bat
+*.BAT

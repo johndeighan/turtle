@@ -32,9 +32,7 @@ class TurtleEnv:
 			raise Exception("You cannot create multiple TurtleEnv's")
 
 		appDesc = '''
-			App
-				*title
-					Turtle Graphics
+			Turtle Graphics
 				*menubar
 					File
 						New

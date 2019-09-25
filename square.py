@@ -1,8 +1,7 @@
 # square.py
 
+import tkinter as tk
 from TurtleEnv import TurtleEnv
 
 env = TurtleEnv()
-turtle = env.turtle
-
-env.mainloop()
+tk.mainloop()

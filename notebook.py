@@ -1,17 +1,10 @@
 # notebook.py
 
-import tkinter as tk
-from tkutils import getAppWindow
-from TKWidgets import (getNewWidget, findWidgetByName, NotebookWidget)
+import smokesignal as ss
+from TKApplication import TKApplication
 
-def cmdExit():
-	global root
-	root.destroy()
-
-root = getAppWindow('''
-		App
-			*title
-				Test of Notebook widget
+app = TKApplication('''
+		Notebook Test App
 			*menubar
 				File
 					Exit
@@ -35,10 +28,14 @@ root = getAppWindow('''
 					button  Exit
 					button Draw
 					button Reset
-		''', globals())
+		''')
 
-notebook = findWidgetByName('notebook')
+@ss.on('exit')
+def ExitApp(event):
+	app.exit()
+
+notebook = app.findWidgetByName('notebook')
 assert notebook
 assert isinstance(notebook, NotebookWidget)
 
-tk.mainloop()
+app.run()
