@@ -1,13 +1,13 @@
 # TreeNode.py
 
-import sys, re, pytest
+import sys, re, pytest, collections
 from more_itertools import ilen
 
 from myutils import rmPrefix, isAllWhiteSpace
 
 reAssign = re.compile(r'^(\S+)\s*\=\s*(.*)$')
 
-class TreeNode:
+class TreeNode(collections.abc.MutableMapping):
 	# --- These are a Class variables -------------------
 
 	#     Modify this to affect how indentation is printed
@@ -21,7 +21,8 @@ class TreeNode:
 
 	# ------------------------------------------------------------------------
 
-	def __init__(self, label, lHereDoc=None):
+	def __init__(self, label):
+		super().__init__()
 
 		# --- label cannot be all whitespace nor start with whitespace
 		if isAllWhiteSpace(label):
@@ -32,9 +33,6 @@ class TreeNode:
 		self.hData = {
 			'label': label,
 			}
-		if lHereDoc:
-			self.hData['lHereDoc'] = lHereDoc
-
 		self.parent = None
 		self.nextSibling = None
 		self.firstChild = None
@@ -49,8 +47,8 @@ class TreeNode:
 		self.parent = node
 
 		lastChild = node.firstChild
-		if (lastChild):
-			while (lastChild.nextSibling):
+		if lastChild != None:
+			while lastChild.nextSibling:
 				lastChild = lastChild.nextSibling
 
 			# --- Now, lastChild has no nextSibling
@@ -107,14 +105,11 @@ class TreeNode:
 	def __delitem__(self, key):
 		del self.hData[key]
 
-	def __contains__(self, key):
-		return key in self.hData
+	def __len__(self):
+		return len(self.hData)
 
-	def get(self, name, defVal=None):
-		return self.hData.get(name, defVal)
-
-	def set(self, name, value):
-		return self.hData.set(name, value)
+	def __iter__(self):
+		return iter(self.hData)
 
 	# ------------------------------------------------------------------------
 	# --- These methods allow us to iterate over all of a
@@ -129,7 +124,7 @@ class TreeNode:
 		n = 0
 		node = self.firstChild
 		while node:
-			++n
+			n += 1
 			node = node.nextSibling
 		return n
 

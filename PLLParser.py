@@ -8,250 +8,304 @@ import sys, io, re, pytest
 from more_itertools import ilen
 from pprint import pprint
 
-from myutils import (rmPrefix, reLeadWS, reTrailWS, reAllWS,
+from myutils import (rmPrefix, reLeadWS, isAllWhiteSpace,
                     traceStr, cleanup_testcode, firstWordOf)
 from TreeNode import TreeNode
 
 # --- Some pre-compiled regular expressions
 
-reLine     = re.compile(r'^(\s*)')
-reComment  = re.compile(r'(?<!\\)#.*$')  # ignore escaped '#' char
-hMySpecial = {
+hDefOptions = {
 	'hereDocStr': '<<<',
-	'markStr':     '*',
+	'markStr':    '*',
+	'reAttr':     re.compile(r'^(\S+)\s*\=\s*(.*)$'),
 	}
 
 # ---------------------------------------------------------------------------
 
-def _generatorFunc(fh):
+def parsePLL(fh, constructor=TreeNode,
+                 hOptions={},
+                 *,
+                 debug=False):
 
-	# --- Allow passing in a string
-	if isinstance(fh, str):
-		fh = io.StringIO(fh)
-
-	# --- We'll need the first line to determine
-	#     if there's any leading whitespace, which will
-	#     be stripped from ALL lines (and therefore must
-	#     be there for every subsequent line)
-	line = nextNonBlankLine(fh)
-	if not line:
-		return
-
-	# --- Check if there's any leading whitespace
-	leadWS = ''
-	leadLen = 0
-	result = reLeadWS.search(line)
-	if result:
-		leadWS = result.group(1)
-		leadLen = len(leadWS)
-
-	flag = None   # might become 'any'
-
-	if leadWS:
-		while line:
-			# --- Check if the required leadWS is present
-			if not flag and (line[:leadLen] != leadWS):
-				raise SyntaxError("Missing leading whitespace")
-			flag = yield line[leadLen:]
-			if flag:
-				line = nextAnyLine(fh)
-			else:
-				line = nextNonBlankLine(fh)
-	else:
-		while line:
-			flag = yield line
-			if flag:
-				line = nextAnyLine(fh)
-			else:
-				line = nextNonBlankLine(fh)
+	return PLLParser(constructor, hOptions, debug).parse(fh)
 
 # ---------------------------------------------------------------------------
 
-def splitLine(line, hSpecial=hMySpecial):
+class PLLParser():
 
-	# --- returns (level, label, marked, numHereDoc)
-	#     label will have markStr removed, but hereDocStr's will remain
+	# --- We want to compile these just once, so make them class fields
+	reLine     = re.compile(r'^(\s*)')
+	hDefOptions = {
+		# --- These become attributes of the PLLParser object
+		'hereDocStr': '<<<',
+		'markStr':    '*',
+		'reComment':  re.compile(r'(?<!\\)#.*$'),  # ignore escaped '#' char
+		'reAttr':     re.compile(r'^(\S+)\s*\=\s*(.*)$'),
+		}
 
-	hereDocStr = hSpecial.get('hereDocStr', hMySpecial['hereDocStr'])
-	markStr    = hSpecial.get('markStr',    hMySpecial['markStr'])
+	# ------------------------------------------------------------------------
 
-	marked = False
-	result = reLine.search(line)
-	if result:
+	def __init__(self, constructor=TreeNode,
+	                   hOptions={},
+	                   debug=False):
 
-		# --- Get indentation, if any, to determine level
-		indent = result.group(1)
-		if ' ' in indent:
-			raise SyntaxError(f"Indentation '{traceStr(indent)}'"
-			                   " cannot contain space chars")
-		level = len(indent)
+		self.setOptions(hOptions)
+		self.constructor = constructor
+		self.debug = debug
 
-		# --- Check if the mark string is present
-		#     If so, strip it to get label, then set key = label
-		if markStr:
-			if line.find(markStr, level) == level:
-				label = line[level + len(markStr):].lstrip()
-				if len(label) == 0:
-					raise SyntaxError("Marked lines cannot be empty")
-				marked = True
+	# ------------------------------------------------------------------------
+
+	def setOptions(self, hOptions):
+
+		for name in self.hDefOptions.keys():
+			if name in hOptions:
+				value = hOptions[name]
+			else:
+				value = self.hDefOptions[name]
+			setattr(self, name, value)
+
+	# ------------------------------------------------------------------------
+
+	def parse(self, fh):
+		# --- Returns (rootNode, hSubTrees)
+
+		self.numLines = 0
+
+		rootNode = None
+		hSubTrees = {}
+
+		curLevel = None
+		debug = self.debug
+
+		# --- Putting this in a separate variable
+		#     allows us to get HEREDOC lines
+		gen = self._generator(fh)
+		for line in gen:
+			if debug:
+				print(f"LINE {self.numLines}: '{traceStr(line)}'", end='')
+
+			(newLevel, label, marked, numHereDoc) = self.splitLine(line)
+
+			if debug:
+				print(f" [{newLevel},{numHereDoc}] '{label}'")
+
+			# --- Extract HEREDOC strings, if any
+			lHereDoc = None
+			if numHereDoc > 0:
+				lHereDoc = []
+				try:
+					text = ''
+					for i in range(numHereDoc):
+						hereLine = gen.send('any')
+						while not isAllWhiteSpace(hereLine):
+							text += hereLine
+							hereLine = gen.send('any')
+						lHereDoc.append(rmPrefix(text))
+						numHereDoc -= 1
+				except:
+					raise SyntaxError("Unexpected EOF in HEREDOC string")
+
+			# --- process first non-empty line
+			if rootNode == None:
+				rootNode = curNode = self.constructor(label)
+				if lHereDoc:
+					rootNode['lHereDoc'] = lHereDoc
+
+				# --- This wouldn't make any sense, but in case someone does it
+				if marked:
+					hSubTrees[firstWordOf(label)] = curNode
+
+				curLevel = newLevel
+				if debug:
+					print(f"   - root node set to '{label}'")
+				continue
+
+			diff = newLevel - curLevel
+
+			if diff > 1:
+				# --- continuation line - append to current node's label
+				if debug:
+					print('   - continuation')
+
+				curNode['label'] += ' ' + label
+
+				# --- Don't change curLevel
+			elif diff == 1:
+				# --- create new child node
+				if debug:
+					assert isinstance(curNode, TreeNode)
+					print(f"   - new child of {curNode.asDebugString()}")
+				assert not curNode.firstChild
+				curNode = self.constructor(label).makeChildOf(curNode)
+				if lHereDoc:
+					curNode['lHereDoc'] = lHereDoc
+				if marked:
+					hSubTrees[firstWordOf(label)] = curNode
+				curLevel += 1
+
+			elif diff < 0:    # i.e. newLevel < curLevel
+				# --- Move up -diff levels, then create sibling node
+				if debug:
+					n = -diff
+					desc = 'level' if n==1 else 'levels'
+					print(f'   - go up {n} {desc}')
+				while (curLevel > newLevel):
+					curLevel -= 1
+					curNode = curNode.parent
+					assert curNode
+				curNode = self.constructor(label).makeSiblingOf(curNode)
+				if lHereDoc:
+					curNode['lHereDoc'] = lHereDoc
+				if marked:
+					hSubTrees[firstWordOf(label)] = curNode
+			elif diff == 0:
+				# --- create new sibling node
+				if debug:
+					print(f"   - new sibling of {curNode.asDebugString()}")
+				assert not curNode.nextSibling
+				curNode = self.constructor(label).makeSiblingOf(curNode)
+				if lHereDoc:
+					curNode['lHereDoc'] = lHereDoc
+				if marked:
+					hSubTrees[firstWordOf(label)] = curNode
+
+			else:
+				raise Exception("What! This cannot happen")
+
+		if self.numLines == 0:
+			raise Exception("parsePLL(): No text to parse")
+
+		if not rootNode:
+			raise Exception("parsePLL(): rootNode is empty")
+
+		assert isinstance(rootNode, self.constructor)
+		return (rootNode, hSubTrees)
+
+	# ------------------------------------------------------------------------
+
+	def _generator(self, fh):
+
+		# --- Allow passing in a string
+		if isinstance(fh, str):
+			fh = io.StringIO(fh)
+
+		# --- We'll need the first line to determine
+		#     if there's any leading whitespace, which will
+		#     be stripped from ALL lines (and therefore must
+		#     be there for every subsequent line)
+		line = self.nextNonBlankLine(fh)
+		if not line:
+			return
+
+		# --- Check if there's any leading whitespace
+		leadWS = ''
+		leadLen = 0
+		result = reLeadWS.search(line)
+		if result:
+			leadWS = result.group(1)
+			leadLen = len(leadWS)
+
+		flag = None   # might become 'any'
+
+		if leadWS:
+			while line:
+				# --- Check if the required leadWS is present
+				if not flag and (line[:leadLen] != leadWS):
+					raise SyntaxError("Missing leading whitespace")
+
+				flag = yield line[leadLen:]
+
+				if flag:
+					line = self.nextAnyLine(fh)
+				else:
+					line = self.nextNonBlankLine(fh)
+		else:
+			while line:
+
+				flag = yield line
+
+				if flag:
+					line = self.nextAnyLine(fh)
+				else:
+					line = self.nextNonBlankLine(fh)
+
+	# ------------------------------------------------------------------------
+
+	def splitLine(self, line):
+
+		# --- All whitespace lines should never be passed to this function
+		assert type(line) == str
+		assert not isAllWhiteSpace(line)
+
+		# --- returns (level, label, marked, numHereDoc)
+		#     label will have markStr removed, but hereDocStr's will remain
+
+		marked = False
+		result = self.reLine.search(line)
+		if result:
+
+			# --- Get indentation, if any, to determine level
+			indent = result.group(1)
+			if ' ' in indent:
+				raise SyntaxError(f"Indentation '{traceStr(indent)}'"
+										 " cannot contain space chars")
+			level = len(indent)
+
+			# --- Check if the mark string is present
+			#     If so, strip it to get label, then set key = label
+			if self.markStr:
+				if line.find(self.markStr, level) == level:
+					label = line[level + len(self.markStr):].lstrip()
+					if len(label) == 0:
+						raise SyntaxError("Marked lines cannot be empty")
+					marked = True
+				else:
+					label = line[level:]
 			else:
 				label = line[level:]
+
+			# --- Check if there are any HereDoc strings
+			numHereDoc = 0
+			if self.hereDocStr:
+				pos = label.find(self.hereDocStr, 0)
+				while pos != -1:
+					numHereDoc += 1
+					pos += len(self.hereDocStr)
+					pos = label.find(self.hereDocStr, pos)
+
+			label = label.replace('\\#', '#')
+			return (level, label, marked, numHereDoc)
 		else:
-			label = line[level:]
+			raise Exception("What! This cannot happen (reLine fails to match)")
 
-		# --- Check if there are any HereDoc strings
-		numHereDoc = 0
-		if hereDocStr:
-			pos = label.find(hereDocStr, 0)
-			while pos != -1:
-				numHereDoc += 1
-				pos += len(hereDocStr)
-				pos = label.find(hereDocStr, pos)
+	# ---------------------------------------------------------------------------
 
-		label = label.replace('\\#', '#')
-		return (level, label, marked, numHereDoc)
-	else:
-		raise Exception("What! This cannot happen (reLine fails to match)")
+	def nextAnyLine(self, fh):
 
-# ---------------------------------------------------------------------------
-
-def parsePLL(fh, constructor=TreeNode,
-                 *,
-                 debug=False,
-                 hSpecial=hMySpecial):
-	#     hSpecial contains special strings, default is:
-	#        hereDocStr = '<<<'
-	#        markStr = '*'
-	#
-	#     Returns (rootNode, hSubTrees)
-
-	rootNode = None
-	hSubTrees = {}
-
-	numLines = 0
-	curLevel = None
-
-	gen = _generatorFunc(fh)  # allows us to get HEREDOC lines
-	for line in gen:
-		numLines += 1
-
-		if debug:
-			print(f"LINE {numLines}: '{traceStr(line)}'", end='')
-
-		(newLevel, label, marked, numHereDoc) = splitLine(line, hSpecial)
-
-		if debug:
-			print(f" [{newLevel},{numHereDoc}] '{label}'")
-
-		# --- Extract HEREDOC strings, if any
-		lHereDoc = None
-		if numHereDoc > 0:
-			lHereDoc = []
-			try:
-				text = ''
-				for i in range(numHereDoc):
-					hereLine = gen.send('any')
-					while not reAllWS.match(hereLine):
-						text += hereLine
-						hereLine = gen.send('any')
-					lHereDoc.append(rmPrefix(text))
-					numHereDoc -= 1
-			except:
-				raise SyntaxError("Unexpected EOF in HEREDOC string")
-
-		# --- process first non-empty line
-		if not rootNode:
-			rootNode = curNode = constructor(label, lHereDoc)
-
-			# --- This wouldn't make any sense, but in case someone does it
-			if marked:
-				hSubTrees[firstWordOf(label)] = curNode
-
-			curLevel = newLevel
-			if debug:
-				print(f"   - root node set to '{label}'")
-			continue
-
-		diff = newLevel - curLevel
-
-		if diff > 1:
-			# --- continuation line - append to current node's label
-			if debug:
-				print('   - continuation')
-
-			curNode['label'] += ' ' + label
-
-			# --- Don't change curLevel
-		elif diff == 1:
-			# --- create new child node
-			if debug:
-				assert isinstance(curNode, TreeNode)
-				print(f"   - new child of {curNode.asDebugString()}")
-			assert not curNode.firstChild
-			curNode = constructor(label, lHereDoc).makeChildOf(curNode)
-			if marked:
-				hSubTrees[firstWordOf(label)] = curNode
-			curLevel += 1
-
-		elif diff < 0:    # i.e. newLevel < curLevel
-			# --- Move up -diff levels, then create sibling node
-			if debug:
-				n = -diff
-				desc = 'level' if n==1 else 'levels'
-				print(f'   - go up {n} {desc}')
-			while (curLevel > newLevel):
-				curLevel -= 1
-				curNode = curNode.parent
-				assert curNode
-			curNode = constructor(label, lHereDoc).makeSiblingOf(curNode)
-			if marked:
-				hSubTrees[firstWordOf(label)] = curNode
-		elif diff == 0:
-			# --- create new sibling node
-			if debug:
-				print(f"   - new sibling of {curNode.asDebugString()}")
-			assert not curNode.nextSibling
-			curNode = constructor(label, lHereDoc).makeSiblingOf(curNode)
-			if marked:
-				hSubTrees[firstWordOf(label)] = curNode
-
-		else:
-			raise Exception("What! This cannot happen")
-
-	if numLines == 0:
-		raise Exception("parsePLL(): No text to parse")
-
-	if not rootNode:
-		raise Exception("parsePLL(): rootNode is empty")
-
-	assert isinstance(rootNode, constructor)
-	return (rootNode, hSubTrees)
-
-# ---------------------------------------------------------------------------
-
-def nextAnyLine(fh):
-
-	line = fh.readline()
-	if line:
-		return line
-	else:
-		return None
-
-# ---------------------------------------------------------------------------
-
-def nextNonBlankLine(fh):
-
-	line = fh.readline()
-	if not line:
-		return None
-	line = re.sub(reComment, '', line)
-	line = re.sub(reTrailWS, '', line)
-	while line == '':
 		line = fh.readline()
-		if not line: return None
-		line = re.sub(reComment, '', line)
-		line = re.sub(reTrailWS, '', line)
-	return line
+		self.numLines += 1
+		if line:
+			return line
+		else:
+			return None
+
+	# ---------------------------------------------------------------------------
+
+	def nextNonBlankLine(self, fh):
+
+		line = fh.readline()
+		self.numLines += 1
+		if not line:
+			return None
+		line = re.sub(self.reComment, '', line)
+		line = line.rstrip()
+		while line == '':
+			line = fh.readline()
+			self.numLines += 1
+			if not line: return None
+			line = re.sub(self.reComment, '', line)
+			line = line.rstrip()
+		return line
 
 # ---------------------------------------------------------------------------
 #                   UNIT TESTS

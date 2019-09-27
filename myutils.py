@@ -155,6 +155,7 @@ def rmPrefix(lLines, *, debug=False, skipEmptyLines=True):
 # ---------------------------------------------------------------------------
 
 def isAllWhiteSpace(s):
+
 	assert type(s) == str
 	if reAllWS.match(s):
 		return True
